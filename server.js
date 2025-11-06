@@ -1,7 +1,7 @@
-// server.js
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+const express = require("express");
+const fs = require("fs");
+const cors = require("cors");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -9,32 +9,34 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
-// Temporary variable to hold message
 let latestMessage = "";
 
-// 🟢 API to receive data from VS Code extension
-app.post('/update', (req, res) => {
+// 🟢 Read saved message from liveData.json (if exists)
+try {
+  const data = fs.readFileSync("liveData.json", "utf8");
+  latestMessage = JSON.parse(data).latestMessage || "";
+} catch (err) {
+  latestMessage = "";
+}
+
+// 🟢 GET route (Frontend will fetch this)
+app.get("/get", (req, res) => {
+  res.json({ latestMessage });
+});
+
+// 🟢 POST route (VS Code extension will send message here)
+app.post("/update", (req, res) => {
   const { message } = req.body;
-  if (message) {
-    latestMessage = message;
-    console.log("📩 Received from extension:", message);
-    res.json({ success: true, msg: 'Message received successfully' });
-  } else {
-    res.status(400).json({ success: false, msg: 'No message received' });
-  }
+  if (!message) return res.status(400).json({ error: "Message is required" });
+
+  latestMessage = message;
+  fs.writeFileSync("liveData.json", JSON.stringify({ latestMessage }, null, 2));
+  res.json({ success: true, message: "Message updated successfully!" });
 });
 
-// 🟢 API to send data to frontend
-app.get('/message', (req, res) => {
-  res.json({ message: latestMessage });
+// 🟢 Start server
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });
-
-// 🟢 Serve frontend page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Server start
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
