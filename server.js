@@ -1,29 +1,40 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const cors = require("cors");
+// server.js
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const DATA_FILE = path.join(__dirname, "liveData.json");
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// GET latest message
-app.get("/get", (req, res) => {
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-  res.json(data);
+// Temporary variable to hold message
+let latestMessage = "";
+
+// 🟢 API to receive data from VS Code extension
+app.post('/update', (req, res) => {
+  const { message } = req.body;
+  if (message) {
+    latestMessage = message;
+    console.log("📩 Received from extension:", message);
+    res.json({ success: true, msg: 'Message received successfully' });
+  } else {
+    res.status(400).json({ success: false, msg: 'No message received' });
+  }
 });
 
-// POST new message
-app.post("/save", (req, res) => {
-  const { latestMessage } = req.body;
-  fs.writeFileSync(DATA_FILE, JSON.stringify({ latestMessage }, null, 2));
-  res.json({ success: true, message: "Message saved successfully!" });
+// 🟢 API to send data to frontend
+app.get('/message', (req, res) => {
+  res.json({ message: latestMessage });
 });
 
-// Start server
-app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+// 🟢 Serve frontend page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Server start
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
