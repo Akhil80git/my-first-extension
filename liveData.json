@@ -1,3 +1,10 @@
 {
-  "latestMessage": "No message yet!"
+  "frontend": {
+    "latestVersion": 0,
+    "versions": []
+  },
+  "backend": {
+    "latestVersion": 0,
+    "versions": []
+  }
 }
