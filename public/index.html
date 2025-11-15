@@ -5,22 +5,60 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
-    ul { list-style-type: none; padding-left: 0; }
-    li { margin: 5px 0; }
-    .container { max-width: 800px; margin: auto; }
+    .container { max-width: 900px; margin: auto; }
+    .folder { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; }
+    button { margin: 5px 0; padding: 5px 10px; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>VS Code Folder Versioning Dashboard</h1>
-    <p>Use the VS Code extension with Ctrl+X to save frontend/backend folders.</p>
-    <p>Check server API endpoints:</p>
-    <ul>
-      <li><strong>POST /save</strong> - Save folder snapshot</li>
-      <li><strong>GET /fetch/:folderType/:version</strong> - Fetch version</li>
-      <li><strong>GET /dashboard</strong> - Show all versions</li>
-    </ul>
-    <p>Frontend & Backend versioning is independent.</p>
+    <div id="dashboard"></div>
   </div>
+
+  <script>
+    async function loadDashboard() {
+      const res = await fetch('/fetchDashboard');
+      const data = await res.json();
+      const container = document.getElementById('dashboard');
+      container.innerHTML = '';
+
+      Object.keys(data).forEach(folder => {
+        const folderDiv = document.createElement('div');
+        folderDiv.className = 'folder';
+        folderDiv.innerHTML = `<h2>${folder.toUpperCase()}</h2>`;
+
+        data[folder].versions.forEach(v => {
+          const versionDiv = document.createElement('div');
+          versionDiv.style.borderTop = "1px solid #999";
+          versionDiv.style.marginTop = "10px";
+          versionDiv.style.paddingTop = "10px";
+          versionDiv.innerHTML = `<h3>Version ${v.version} - ${v.timestamp}</h3>`;
+
+          const btn = document.createElement('button');
+          btn.textContent = "Reload this version";
+          btn.onclick = () => {
+            // Clear previous version code display
+            const existingPre = versionDiv.querySelectorAll("pre");
+            existingPre.forEach(p => p.remove());
+
+            Object.keys(v.files).forEach(file => {
+              const pre = document.createElement('pre');
+              pre.textContent = `${file}:\n${v.files[file]}`;
+              versionDiv.appendChild(pre);
+            });
+          };
+          versionDiv.appendChild(btn);
+
+          folderDiv.appendChild(versionDiv);
+        });
+
+        container.appendChild(folderDiv);
+      });
+    }
+
+    loadDashboard();
+  </script>
 </body>
 </html>
