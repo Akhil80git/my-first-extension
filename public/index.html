@@ -1,49 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VS Code Live Message Viewer</title>
+  <title>VS Code Folder Versioning</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 50px;
-      background: linear-gradient(135deg, #8ec5fc, #e0c3fc);
-      min-height: 100vh;
-    }
+    body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
-    #message-box {
-      margin-top: 40px;
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      font-size: 22px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      display: inline-block;
-      min-width: 300px;
-    }
+    ul { list-style-type: none; padding-left: 0; }
+    li { margin: 5px 0; }
+    .container { max-width: 800px; margin: auto; }
   </style>
 </head>
 <body>
-  <h1>Akhilesh s</h1>
-  <div id="message-box">Loding😘...</div>
-
-  <script>
-    async function fetchMessage() {
-      try {
-        const res = await fetch("https://my-first-extension.onrender.com/get");
-        const data = await res.json();
-        document.getElementById("message-box").innerText =
-          data.latestMessage || "No message yet!";
-      } catch (err) {
-        document.getElementById("message-box").innerText = "⚠️ Server not available!";
-      }
-    }
-
-    // हर 3 सेकंड में message update करो
-    setInterval(fetchMessage, 3000);
-    fetchMessage();
-  </script>
+  <div class="container">
+    <h1>VS Code Folder Versioning Dashboard</h1>
+    <p>Use the VS Code extension with Ctrl+X to save frontend/backend folders.</p>
+    <p>Check server API endpoints:</p>
+    <ul>
+      <li><strong>POST /save</strong> - Save folder snapshot</li>
+      <li><strong>GET /fetch/:folderType/:version</strong> - Fetch version</li>
+      <li><strong>GET /dashboard</strong> - Show all versions</li>
+    </ul>
+    <p>Frontend & Backend versioning is independent.</p>
+  </div>
 </body>
 </html>
