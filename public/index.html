@@ -1,44 +1,13 @@
-<!doctype html>
+ <!doctype html>
 <html lang="hi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>VS Code Folder Versioning - Global 3s Grouping</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding-top: 70px; background: #f9f9fb; color: #222; }
-
-    /* ---------- TOP FIXED NAV ---------- */
-    .topnav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: white;
-      padding: 10px;
-      border-bottom: 1px solid #ddd;
-      z-index: 9999;
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-    }
-    .topnav button {
-      padding: 8px 14px;
-      border-radius: 6px;
-      border: none;
-      background: #007acc;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .topnav button.active {
-      background: #005a99;
-      border: 2px solid black;
-    }
-
-    /* ---------- OLD CODE KEEPED SAME ---------- */
-    .container { max-width: 1000px; margin: auto; padding: 20px; }
+    body { font-family: Arial, sans-serif; margin: 24px; background: #f9f9fb; color: #222; }
     h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }
+    .container { max-width: 1000px; margin: auto; }
     .folder {
       background: white;
       border: 1px solid #ddd;
@@ -71,6 +40,7 @@
       transition: 0.15s;
       margin-right: 8px;
     }
+    button:hover { background: #005a99; }
     pre {
       background: #f4f4f4;
       padding: 12px;
@@ -79,6 +49,7 @@
       overflow-x: auto;
       border-left: 5px solid #ccc;
       font-family: 'Courier New', monospace;
+      transition: all 0.2s ease;
     }
     .save-all-badge {
       background: #ffeb3b;
@@ -89,25 +60,44 @@
       margin-left: 10px;
       font-weight: bold;
     }
+    .controls { text-align:center; margin-bottom: 12px; }
     .notice { text-align:center; font-size:0.9em; color:#666; margin-bottom:8px; }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
 
-<!-- TOP FIXED NAV -->
-<div class="topnav" id="topnav"></div>
+    <div class="controls">
+      <button id="reloadBtn">Load Dashboard</button>
+      <button id="sampleBtn">Load Sample Data</button>
+    </div>
+    <div class="notice">Logic: सभी folders मिलाकर timestamps को cluster करते हैं — यदि timestamps का फरक ≤ 3 सेकण्ड हो तो same color group.</div>
 
-<div class="container">
-  <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
-  <div class="notice">Logic: सभी folders के timestamps को cluster → difference ≤ 3 seconds = same group.</div>
-  <div id="dashboard"></div>
-</div>
+    <div id="dashboard"></div>
+  </div>
 
 <script>
-  /* --- COLORS SAME --- */
-  const SAVE_ALL_COLORS = ['#ffebee','#f8bbd0','#e1f5fe','#e8f5e8','#fff3e0','#f3e5f5','#e0f2f1','#fffde7'];
+  // ============== COLOR PALETTE FOR GROUPS ==========
+  const SAVE_ALL_COLORS = [
+    '#ffebee', '#f8bbd0', '#e1f5fe', '#e8f5e8',
+    '#fff3e0', '#f3e5f5', '#e0f2f1', '#fffde7'
+  ];
 
-  function darken(hex, percent) {
+  // Helper: Indian time formatted
+  function toIndianTimeStr(isoOrMs) {
+    const d = new Date(isoOrMs);
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
+  }
+
+  // darken color for border left - safe fallback
+  function darken(hex, percent){
+    // hex e.g. #rrggbb
     const h = hex.replace('#','');
     const num = parseInt(h,16);
     let r = (num >> 16) & 0xff;
@@ -116,118 +106,218 @@
     r = Math.max(0, Math.min(255, Math.round(r - 2.55 * percent)));
     g = Math.max(0, Math.min(255, Math.round(g - 2.55 * percent)));
     b = Math.max(0, Math.min(255, Math.round(b - 2.55 * percent)));
-    return "#" + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+    const newHex = "#" + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
+    return newHex;
   }
 
-  function toIndianTimeStr(x) {
-    return new Date(x).toLocaleString('en-IN', { hour12: false });
+  // ============== LOAD (SERVER) or SAMPLE DATA =================
+  async function fetchDashboardFromServer() {
+    try {
+      const res = await fetch('/fetchDashboard');
+      if (!res.ok) throw new Error('Server error');
+      return await res.json();
+    } catch (e) {
+      console.warn('Server fetch failed:', e);
+      return null;
+    }
   }
 
+  // Example sample data - same shape as your original expected API
   function getSampleData() {
+    // Each folder has versions: { version: number, timestamp: ISO or ms, files: {filename: content} }
     return {
       "kml": {
         versions: [
-          { version: 1, timestamp: "2025-11-16T09:13:53Z", files:{a:"kml1"}},
-          { version: 2, timestamp: "2025-11-16T09:13:55Z", files:{a:"kml2"}},
-          { version: 3, timestamp: "2025-11-16T09:14:20Z", files:{a:"kml3"}},
+          { version: 1, timestamp: "2025-11-16T09:13:53Z", files: { "file1.kml": "<kml>v1</kml>" } },
+          { version: 2, timestamp: "2025-11-16T09:14:05Z", files: { "file2.kml": "<kml>v2</kml>" } },
+          { version: 3, timestamp: "2025-11-16T09:14:22Z", files: { "file3.kml": "<kml>v3</kml>" } }
         ]
       },
       "frontend": {
         versions: [
-          { version: 1, timestamp: "2025-11-16T09:13:54Z", files:{b:"front1"}},
-          { version: 2, timestamp: "2025-11-16T09:14:19Z", files:{b:"front2"}},
+          { version: 1, timestamp: "2025-11-16T09:14:03Z", files: { "index.html": "<html>v1</html>" } },
+          { version: 2, timestamp: "2025-11-16T09:14:21Z", files: { "index.html": "<html>v2</html>" } }
+        ]
+      },
+      "api": {
+        versions: [
+          { version: 1, timestamp: "2025-11-16T09:14:04Z", files: { "server.js": "// api v1" } },
+          { version: 2, timestamp: "2025-11-16T09:14:07Z", files: { "server.js": "// api v2" } }
         ]
       }
     };
   }
 
-  function cluster(data) {
-    const flat=[];
-    Object.keys(data).forEach(folder=>{
-      data[folder].versions.forEach(v=>{
+  // ============== GLOBAL CLUSTERING LOGIC (3 seconds) ===========
+  function clusterGloballyAllVersions(allFolderData) {
+    // Build a flat list with references to folder & version
+    const flat = [];
+    Object.keys(allFolderData).forEach(folderName => {
+      const vlist = allFolderData[folderName].versions || [];
+      vlist.forEach(v => {
+        // Ensure timestamp is numeric ms for sorting
+        const t = (typeof v.timestamp === 'number') ? v.timestamp : Date.parse(v.timestamp);
         flat.push({
-          folder, v,
-          t: Date.parse(v.timestamp)
-        })
-      })
+          folder: folderName,
+          versionObj: v,
+          timestampMs: t
+        });
+      });
     });
-    flat.sort((a,b)=>a.t-b.t);
 
-    let clusters=[]; let now=null;
-    flat.forEach(it=>{
-      if(!now){
-        now={id:1,start:it.t,items:[it]};
-        clusters.push(now);
+    // sort by timestamp asc
+    flat.sort((a,b) => a.timestampMs - b.timestampMs);
+
+    // Now cluster globally: if diff <= 3000ms -> same cluster
+    const clusters = []; // each cluster = { id, startMs, items: [flatIndex...] }
+    let currentCluster = null;
+    for (let i=0;i<flat.length;i++){
+      const item = flat[i];
+      if (!currentCluster) {
+        currentCluster = { id: clusters.length + 1, startMs: item.timestampMs, items: [item] };
+        clusters.push(currentCluster);
       } else {
-        if(it.t - now.start <= 3000) now.items.push(it);
-        else { now={id:clusters.length+1,start:it.t,items:[it]}; clusters.push(now); }
+        const diff = item.timestampMs - currentCluster.startMs;
+        if (diff <= 3000) {
+          currentCluster.items.push(item);
+        } else {
+          // start a new cluster
+          currentCluster = { id: clusters.length + 1, startMs: item.timestampMs, items: [item] };
+          clusters.push(currentCluster);
+        }
       }
+    }
+
+    // Assign a color to each cluster (rotate colors)
+    clusters.forEach((c, idx) => {
+      c.color = SAVE_ALL_COLORS[idx % SAVE_ALL_COLORS.length];
+      c.borderColor = darken(c.color, 30);
     });
 
-    clusters.forEach((c,i)=>{
-      c.color = SAVE_ALL_COLORS[i % SAVE_ALL_COLORS.length];
-      c.border = darken(c.color,30);
-      c.items.forEach(it=>{
-        it.v._cluster = { id:c.id, color:c.color, border:c.border };
+    // Map item -> clusterId and color for easy lookup
+    const itemClusterMap = new Map();
+    clusters.forEach(c => {
+      c.items.forEach(it => {
+        // key: folder + '::' + version number (unique enough)
+        const key = `${it.folder}::${(it.versionObj && it.versionObj.version) || Math.random()}`;
+        itemClusterMap.set(key, { clusterId: c.id, color: c.color, borderColor: c.borderColor, startMs: c.startMs });
+        // Also attach cluster meta to the versionObj itself for UI use
+        it.versionObj._globalCluster = { id: c.id, color: c.color, borderColor: c.borderColor, startMs: c.startMs };
       });
     });
 
-    return clusters;
+    return { flat, clusters, itemClusterMap };
   }
 
-  let globalData=null;
-  let globalClusters=[];
+  // ============== RENDERING DASHBOARD =================
+  function renderDashboard(data) {
+    const container = document.getElementById('dashboard');
+    container.innerHTML = ''; // clear
 
-  function renderDashboard(filterGroup=null){
-    const dash=document.getElementById("dashboard");
-    dash.innerHTML="";
+    // compute global clusters
+    const { clusters } = clusterGloballyAllVersions(data);
 
-    Object.keys(globalData).forEach(folder=>{
-      const box=document.createElement("div");
-      box.className="folder";
-      box.innerHTML=`<h2>${folder}</h2>`;
+    // For UI, we still show folder boxes but versions will have cluster color info attached
+    Object.keys(data).forEach(folderName => {
+      const folderDiv = document.createElement('div');
+      folderDiv.className = 'folder';
+      folderDiv.innerHTML = `<h2>${folderName}</h2>`;
 
-      globalData[folder].versions
-      .filter(v => filterGroup ? v._cluster.id==filterGroup : true)
-      .forEach(v=>{
-        const div=document.createElement("div");
-        div.className="version";
-        const info=v._cluster;
-        div.innerHTML=`<h3>Version ${v.version} - ${toIndianTimeStr(v.timestamp)}
-            <span class="save-all-badge">GROUP #${info.id}</span></h3>`;
-        box.appendChild(div);
+      data[folderName].versions.forEach(version => {
+        const versionDiv = document.createElement('div');
+        versionDiv.className = 'version';
+
+        const timeStr = toIndianTimeStr(Date.parse(version.timestamp));
+        const clusterInfo = version._globalCluster || null;
+        const badgeHtml = clusterInfo ? `<span class="save-all-badge">GROUP #${clusterInfo.id}</span>` : '';
+
+        versionDiv.innerHTML = `
+          <h3 style="margin:0 0 8px; color:#2c3e50; display:flex; align-items:center; gap:10px;">
+            Version ${version.version} - ${timeStr}
+            ${badgeHtml}
+          </h3>
+        `;
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Reload this version';
+        btn.onclick = () => {
+          // remove any previous pre inside this versionDiv
+          versionDiv.querySelectorAll('pre').forEach(p => p.remove());
+
+          // For each file, create pre with group color if assigned
+          Object.keys(version.files || {}).forEach(filename => {
+            const pre = document.createElement('pre');
+            pre.textContent = `${filename}:\n${version.files[filename]}`;
+
+            if (clusterInfo) {
+              pre.style.background = clusterInfo.color;
+              pre.style.borderLeftColor = clusterInfo.borderColor;
+            } else {
+              pre.style.background = '#f4f4f4';
+              pre.style.borderLeftColor = '#ccc';
+            }
+            versionDiv.appendChild(pre);
+          });
+        };
+
+        versionDiv.appendChild(btn);
+        folderDiv.appendChild(versionDiv);
       });
 
-      dash.appendChild(box);
+      container.appendChild(folderDiv);
     });
+
+    // also show a legend of clusters at bottom (optional)
+    if (clusters.length) {
+      const legend = document.createElement('div');
+      legend.style.marginTop = '10px';
+      legend.style.padding = '10px';
+      legend.style.background = '#fff';
+      legend.style.border = '1px solid #eee';
+      legend.style.borderRadius = '8px';
+      legend.innerHTML = `<strong>Groups legend:</strong>`;
+      clusters.forEach(c => {
+        const s = document.createElement('div');
+        s.style.display = 'inline-block';
+        s.style.margin = '8px';
+        s.style.padding = '6px 10px';
+        s.style.borderRadius = '6px';
+        s.style.background = c.color;
+        s.style.border = `1px solid ${c.borderColor}`;
+        s.textContent = `Group ${c.id}`;
+        legend.appendChild(s);
+      });
+      container.appendChild(legend);
+    }
   }
 
-  function renderTopNav(){
-    const nav=document.getElementById("topnav");
-    nav.innerHTML="";
+  // ============== MAIN LOAD FUNCTION =================
+  async function loadDashboard(useSample=false) {
+    let data = null;
+    if (!useSample) {
+      data = await fetchDashboardFromServer();
+    }
+    if (!data) {
+      data = getSampleData();
+    }
 
-    const allBtn=document.createElement("button");
-    allBtn.textContent="ALL";
-    allBtn.onclick=()=>renderDashboard(null);
-    nav.appendChild(allBtn);
-
-    globalClusters.forEach(c=>{
-      const b=document.createElement("button");
-      b.textContent="GROUP "+c.id;
-      b.onclick=()=>renderDashboard(c.id);
-      nav.appendChild(b);
+    // IMPORTANT: ensure versions arrays exist and timestamp parseable
+    Object.keys(data).forEach(folder => {
+      data[folder].versions = (data[folder].versions || []).map(v => {
+        // Normalize timestamp into ISO string if needed - keep original too
+        return Object.assign({}, v);
+      });
     });
+
+    renderDashboard(data);
   }
 
-  function load(){
-    globalData=getSampleData();
-    globalClusters = cluster(globalData);
-    renderTopNav();
-    renderDashboard(null);
-  }
+  // Buttons
+  document.getElementById('reloadBtn').addEventListener('click', () => loadDashboard(false));
+  document.getElementById('sampleBtn').addEventListener('click', () => loadDashboard(true));
 
-  load();
+  // initial load (use sample if server not present)
+  loadDashboard(false);
 </script>
-
 </body>
 </html>
