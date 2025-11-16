@@ -37,14 +37,18 @@
     .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;}
     button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;}
     button:hover{background:#005a99;}
-    pre{background:#f4f4f4;padding:12px;margin:10px 0 0 0;border-radius:6px;overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;}
+    pre{
+      background:#f4f4f4;padding:12px;margin:8px 0 0 0;border-radius:6px;
+      overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;
+      position:relative;white-space:pre-wrap;
+    }
     .save-all-badge {
       font-size:0.75em;padding:2px 8px;border-radius:4px;margin-left:10px;font-weight:bold;
       border-left:3px solid;
     }
     .version-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
 
-    /* Tree Structure */
+    /* Tree */
     .tree-node {margin-left:20px;position:relative;}
     .tree-node::before {
       content:'';position:absolute;left:-12px;top:0;bottom:0;width:1px;background:#ccc;
@@ -63,6 +67,14 @@
     .tree-children {margin-left:20px;display:none;}
     .tree-children.open {display:block;}
     .tree-icon {font-size:0.8em;}
+
+    /* Copy Button */
+    .copy-btn {
+      position:absolute;top:8px;right:8px;background:#007acc;color:white;
+      border:none;padding:4px 8px;border-radius:4px;font-size:0.8em;cursor:pointer;
+      opacity:0.8;
+    }
+    .copy-btn:hover {opacity:1;background:#005a99;}
   </style>
 </head>
 <body>
@@ -115,7 +127,7 @@
     return brightness > 128;
   }
 
-  // === NEW: Render Tree Structure ===
+  // === Render Tree with Toggle + Copy ===
   function renderFileTree(container, filesObj, clusterInfo) {
     const root = document.createElement('div');
     root.className = 'tree-root';
@@ -145,27 +157,44 @@
         if (isDir) {
           const children = document.createElement('div');
           children.className = 'tree-children';
-          buildNode(value, fullPath, children);
+          buildNode(value, fullPath);
           node.appendChild(label);
           node.appendChild(children);
 
           label.onclick = (e) => {
             e.stopPropagation();
             children.classList.toggle('open');
-            label.querySelector('.tree-icon').textContent = children.classList.contains('open') ? 'Folder' : 'Folder';
           };
         } else {
+          let pre = null;
           label.onclick = (e) => {
             e.stopPropagation();
-            const pre = document.createElement('pre');
-            pre.textContent = `${fullPath}:\n${value}`;
-            if (selectedGroup !== 'all' && clusterInfo) {
-              pre.style.background = clusterInfo.color;
-              pre.style.borderLeftColor = clusterInfo.borderColor;
+            if (pre && pre.parentNode === node) {
+              pre.remove();
+              pre = null;
+            } else {
+              if (pre) pre.remove();
+              pre = document.createElement('pre');
+              pre.textContent = value; // sirf code, file name nahi
+              
+              if (selectedGroup !== 'all' && clusterInfo) {
+                pre.style.background = clusterInfo.color;
+                pre.style.borderLeftColor = clusterInfo.borderColor;
+              }
+
+              const copyBtn = document.createElement('button');
+              copyBtn.textContent = 'Copy';
+              copyBtn.className = 'copy-btn';
+              copyBtn.onclick = (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(value).then(() => {
+                  copyBtn.textContent = 'Copied!';
+                  setTimeout(() => copyBtn.textContent = 'Copy', 1500);
+                });
+              };
+              pre.appendChild(copyBtn);
+              node.appendChild(pre);
             }
-            const existing = label.parentNode.querySelector('pre');
-            if (existing) existing.remove();
-            label.parentNode.appendChild(pre);
           };
         }
 
@@ -200,14 +229,23 @@
               "src/": {
                 "components/": {
                   "Button.js": "export const Button = () => <button>Click</button>;",
-                  "Card.js": "export const Card = () => <div className='card'>Content</div>;"
+                  "Card.js": "export const Card = () => <div>Hi</div>;"
                 },
-                "App.js": "import React from 'react';\nconsole.log('Hello');"
+                "App.js": "console.log('Hello World');"
               },
-              "public/": {
-                "index.html": "<!DOCTYPE html><html><body><div id='root'></div></body></html>"
+              "styles/": {
+                "hgd.css": ".header { color: red; }\n.btn { padding: 10px; }"
               },
-              "package.json": '{\n  "name": "my-app",\n  "version": "1.0.0"\n}'
+              "index.html": "<html><body><h1>Hello</h1></body></html>"
+            }
+          },
+          {
+            version: 2,
+            timestamp: "2025-11-16T10:17:59.000Z",
+            files: {
+              "styles/": {
+                "hgd.css": ".header { color: blue; }\n.btn { padding: 12px; }"
+              }
             }
           }
         ]
@@ -347,7 +385,6 @@
 
         versionDiv.appendChild(headerDiv);
 
-        // === NEW: Tree View ===
         const treeContainer = document.createElement('div');
         treeContainer.style.marginTop = '10px';
         renderFileTree(treeContainer, version.files, clusterInfo);
@@ -356,7 +393,6 @@
         const btn = document.createElement('button');
         btn.textContent='Reload this version';
         btn.style.marginTop = '10px';
-        btn.onclick=()=>{ /* same as before */ };
         versionDiv.appendChild(btn);
         folderDiv.appendChild(versionDiv);
       });
