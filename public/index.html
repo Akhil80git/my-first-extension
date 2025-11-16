@@ -7,16 +7,19 @@
     body { font-family: Arial, sans-serif; margin: 40px; }
     h1 { color: #333; }
     .container { max-width: 900px; margin: auto; }
-    .folder { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; }
-    button { margin: 5px 0; padding: 5px 10px; cursor: pointer; }
+    .folder { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }
+    button { margin: 5px 0; padding: 6px 12px; cursor: pointer; background: #007acc; color: white; border: none; border-radius: 4px; }
+    button:hover { background: #005a99; }
     pre {
       background: #f4f4f4;
-      padding: 10px;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 4px;
       overflow-x: auto;
-      margin: 5px 0;
-      border-left: 4px solid transparent;
+      border-left: 5px solid #ccc;
+      transition: all 0.3s ease;
     }
-    .all-save { transition: background 0.3s; }
+    .save-all-group { }
   </style>
 </head>
 <body>
@@ -26,41 +29,31 @@
   </div>
 
   <script>
-    // -----------------------------------------------------------------
-    // 1. Colour palette for successive “all-save” events
-    // -----------------------------------------------------------------
-    const COLOR_PALETTE = [
-      '#e6f9e6', // light green
-      '#fff3cd', // light yellow
-      '#d1ecf1', // light cyan
-      '#f8d7da', // light red
-      '#d4edda', // another green
-      '#f1d4f1', // light purple
-      '#d6d8db'  // light gray
+    // ============== COLOR PALETTE FOR EACH "SAVE ALL" ==============
+    const SAVE_ALL_COLORS = [
+      '#d4edda', // green
+      '#fff3cd', // yellow
+      '#d1ecf1', // cyan
+      '#f8d7da', // red
+      '#e2d4f1', // purple
+      '#d6d8db', // gray
+      '#cce5ff', // blue
+      '#f1d4f1'  // pink
     ];
 
-    // -----------------------------------------------------------------
-    // 2. Convert UTC → Indian time (Asia/Kolkata)
-    // -----------------------------------------------------------------
-    function toIndianTime(utcString) {
-      const date = new Date(utcString);
-      return date.toLocaleString('en-IN', {
+    // ============== INDIAN TIME ==============
+    function toIndianTime(utc) {
+      return new Date(utc).toLocaleString('en-IN', {
         timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
         hour12: false
       });
     }
 
-    // -----------------------------------------------------------------
-    // 3. Main loader
-    // -----------------------------------------------------------------
-    let allSaveCounter = 0;               // how many all-saves we have seen
-    const allSaveColorMap = new Map();    // versionIndex → colour
+    // ============== TRACK SAVE ALL GROUPS ==============
+    let saveAllGroupId = 0;
+    const saveAllGroupColors = new Map(); // groupId → color
 
     async function loadDashboard() {
       const res = await fetch('/fetchDashboard');
@@ -68,53 +61,61 @@
       const container = document.getElementById('dashboard');
       container.innerHTML = '';
 
-      Object.keys(data).forEach(folder => {
+      Object.keys(data).forEach(folderName => {
         const folderDiv = document.createElement('div');
         folderDiv.className = 'folder';
-        folderDiv.innerHTML = `<h2>${folder.toUpperCase()}</h2>`;
+        folderDiv.innerHTML = `<h2 style="margin:0 0 15px; color:#2c3e50;">${folderName.toUpperCase()}</h2>`;
 
-        data[folder].versions.forEach((v, vIdx) => {
-          // ---------- prepare colour for this version ----------
-          let versionColor = null;
-          if (v.isAllSave) {
-            if (!allSaveColorMap.has(vIdx)) {
-              const paletteIdx = allSaveCounter % COLOR_PALETTE.length;
-              versionColor = COLOR_PALETTE[paletteIdx];
-              allSaveColorMap.set(vIdx, versionColor);
-              allSaveCounter++;
-            } else {
-              versionColor = allSaveColorMap.get(vIdx);
+        data[folderName].versions.forEach(version => {
+          const { version: verNum, timestamp, files, isAllSave = false } = version;
+
+          // Assign a group color if it's a Save All
+          let groupColor = null;
+          if (isAllSave) {
+            if (!version.groupId) {
+              version.groupId = ++saveAllGroupId;
             }
+            if (!saveAllGroupColors.has(version.groupId)) {
+              const colorIndex = (saveAllGroupId - 1) % SAVE_ALL_COLORS.length;
+              saveAllGroupColors.set(version.groupId, SAVE_ALL_COLORS[colorIndex]);
+            }
+            groupColor = saveAllGroupColors.get(version.groupId);
           }
 
           const versionDiv = document.createElement('div');
-          versionDiv.style.borderTop = "1px solid #999";
-          versionDiv.style.marginTop = "10px";
-          versionDiv.style.paddingTop = "10px";
+          versionDiv.style.cssText = 'border-top:1px solid #ddd; margin-top:15px; padding-top:15px;';
 
-          const niceTime = toIndianTime(v.timestamp);
-          versionDiv.innerHTML = `<h3>Version ${v.version} - ${niceTime}</h3>`;
+          const timeStr = toIndianTime(timestamp);
+          versionDiv.innerHTML = `
+            <h3 style="margin:0 0 10px; color:#2c3e50;">
+              Version ${verNum} - ${timeStr}
+              ${isAllSave ? '<span style="background:#ffeb3b; padding:2px 6px; border-radius:3px; font-size:0.8em; margin-left:8px;">SAVE ALL</span>' : ''}
+            </h3>`;
 
           const btn = document.createElement('button');
-          btn.textContent = "Reload this version";
+          btn.textContent = 'Reload this version';
           btn.onclick = () => {
-            // remove old <pre> blocks
-            versionDiv.querySelectorAll("pre").forEach(p => p.remove());
+            // Clear old files
+            versionDiv.querySelectorAll('pre').forEach(p => p.remove());
 
-            Object.keys(v.files).forEach(file => {
+            Object.keys(files).forEach(filename => {
               const pre = document.createElement('pre');
-              pre.textContent = `${file}:\n${v.files[file]}`;
+              pre.textContent = `${filename}:\n${files[filename]}`;
 
-              // ----- APPLY COLOUR -----
-              if (v.isAllSave && versionColor) {
-                pre.style.background = versionColor;
-                pre.classList.add('all-save');
+              // APPLY COLOR ONLY IF SAVE ALL
+              if (isAllSave && groupColor) {
+                pre.style.background = groupColor;
+                pre.style.borderLeftColor = darkenColor(groupColor, 30);
+                pre.classList.add('save-all-group');
+              } else {
+                pre.style.background = '#f4f4f4';
+                pre.style.borderLeftColor = '#ccc';
               }
-              // otherwise default white (no extra class)
 
               versionDiv.appendChild(pre);
             });
           };
+
           versionDiv.appendChild(btn);
           folderDiv.appendChild(versionDiv);
         });
@@ -123,7 +124,19 @@
       });
     }
 
-    // -----------------------------------------------------------------
+    // ============== DARKEN COLOR FOR BORDER ==============
+    function darkenColor(color, percent) {
+      const num = parseInt(color.slice(1), 16);
+      const amt = Math.round(2.55 * percent);
+      const R = (num >> 16) - amt;
+      const G = (num >> 8 & 0x00FF) - amt;
+      const B = (num & 0x0000FF) - amt;
+      return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+             (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+             (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+    }
+
+    // ============== LOAD ==============
     loadDashboard();
   </script>
 </body>
