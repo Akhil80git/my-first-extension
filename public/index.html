@@ -21,14 +21,14 @@
     }
     .group-btn {
       margin:3px;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;
-      border:1px solid transparent;position:relative;
+      border:1px solid transparent;position:relative;display:inline-flex;align-items:center;gap:4px;
     }
     .group-btn.active {background:#007acc;color:white;}
     .group-btn.all {background:#4caf50;color:white;}
     .group-btn.all.active {background:#388e3c;}
     .error-count {
       font-size:0.65em;background:#f44336;color:white;border-radius:10px;
-      padding:1px 5px;margin-left:6px;font-weight:bold;
+      padding:1px 5px;font-weight:bold;
     }
 
     .content {
@@ -41,11 +41,13 @@
     .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;}
     button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;}
     button:hover{background:#005a99;}
+    
     pre{
-      background:#f4f4f4;padding:12px;margin:8px 0 0 0;border-radius:6px;
+      background:#fff !important;padding:12px;margin:8px 0 0 0;border-radius:6px;
       overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;
-      position:relative;white-space:pre-wrap;
+      position:relative;white-space:pre-wrap;line-height:1.5;
     }
+    .error-line {background:#ffebee !important;color:#c62828;}
     .save-all-badge {
       font-size:0.75em;padding:2px 8px;border-radius:4px;margin-left:10px;font-weight:bold;
       border-left:3px solid;
@@ -63,7 +65,7 @@
     }
     .tree-label {
       display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;
-      user-select:none;font-family:monospace;font-size:0.95em;
+      user-select:none;font-family:monospace;font-size:0.95em;position:relative;
     }
     .tree-label:hover {background:#f0f0f0;}
     .tree-label.folder {font-weight:bold;color:#1976d2;}
@@ -71,6 +73,10 @@
     .tree-children {margin-left:20px;display:none;}
     .tree-children.open {display:block;}
     .tree-icon {font-size:0.8em;}
+    .file-error-count {
+      font-size:0.7em;background:#f44336;color:white;border-radius:8px;
+      padding:0 4px;margin-left:4px;font-weight:bold;
+    }
 
     .copy-btn {
       position:absolute;top:8px;right:8px;background:#007acc;color:white;
@@ -130,66 +136,98 @@
     return brightness > 128;
   }
 
-  // === NEW: Count Syntax Errors ===
-  function countSyntaxErrors(code, filename) {
-    let errors = 0;
+  // === NEW: Advanced Error Detection with Line Highlight ===
+  function analyzeCodeWithErrors(code, filename) {
     const ext = filename.split('.').pop().toLowerCase();
+    const lines = code.split('\n');
+    const errors = [];
+    let errorCount = 0;
 
     if (['js','jsx','ts','tsx'].includes(ext)) {
-      // JS/TS: Check brackets, semicolons, quotes
       const stack = [];
-      for (let i = 0; i < code.length; i++) {
-        const c = code[i];
-        if (c === '{' || c === '[' || c === '(') stack.push(c);
-        if (c === '}' || c === ']' || c === ')') {
-          const open = { '}':'{', ']':'[', ')':'(' }[c];
-          if (stack.length && stack[stack.length-1] === open) stack.pop();
-          else errors++;
+      let inString = null;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let clean = line.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '').trim();
+        if (!clean) continue;
+
+        for (let j = 0; j < line.length; j++) {
+          const c = line[j];
+          if (inString) {
+            if (c === inString && line[j-1] !== '\\') inString = null;
+            continue;
+          }
+          if (c === '"' || c === "'" || c === '`') {
+            inString = c;
+            continue;
+          }
+          if (c === '{' || c === '[' || c === '(') stack.push({char:c, line:i});
+          if (c === '}' || c === ']' || c === ')') {
+            const open = { '}':'{', ']':'[', ')':'(' }[c];
+            const match = stack.pop();
+            if (!match || match.char !== open) {
+              errors.push({line: i, msg: `Unmatched ${c}`});
+              errorCount++;
+            }
+          }
         }
-        if (c === '"' || c === "'") {
-          if (i === 0 || code[i-1] !== '\\') {
-            const end = code.indexOf(c, i+1);
-            if (end === -1) errors++;
-            else i = end;
+        if (clean && !clean.endsWith(';') && !clean.includes('=>') && !clean.includes('{') && !clean.includes('}')) {
+          if (!/return|if|else|for|while|switch/.test(clean)) {
+            errors.push({line: i, msg: 'Missing semicolon'});
+            errorCount++;
           }
         }
       }
-      errors += stack.length; // unclosed
-      if (!/;\s*$/m.test(code.trim()) && !code.includes('=>') && !code.includes('return')) errors++;
+      stack.forEach(s => {
+        errors.push({line: s.line, msg: `Unclosed ${s.char}`});
+        errorCount++;
+      });
     }
 
     if (ext === 'html') {
-      const tags = code.match(/<\/?[^>]+>/g) || [];
-      const stack = [];
-      tags.forEach(tag => {
-        if (tag.startsWith('</')) {
-          const name = tag.match(/<\/([a-z0-9]+)/i)[1];
-          if (stack.length && stack[stack.length-1] === name) stack.pop();
-          else errors++;
-        } else if (!tag.match(/\/>$/) && !['br','hr','img','input'].includes(tag.match(/<([a-z0-9]+)/i)[1])) {
-          const name = tag.match(/<([a-z0-9]+)/i)[1];
-          stack.push(name);
-        }
+      const tagStack = [];
+      lines.forEach((line, i) => {
+        const matches = line.match(/<\/?([a-z0-9]+)/gi) || [];
+        matches.forEach(tag => {
+          const isClose = tag.startsWith('</');
+          const name = tag.match(/[a-z0-9]+/i)[0].toLowerCase();
+          if (isClose) {
+            const idx = tagStack.lastIndexOf(name);
+            if (idx !== -1) tagStack.splice(idx, 1);
+            else { errors.push({line:i, msg:`Unclosed <${name}>`}); errorCount++; }
+          } else if (!tag.match(/\/>$/) && !['br','hr','img','input'].includes(name)) {
+            tagStack.push(name);
+          }
+        });
       });
-      errors += stack.length;
+      tagStack.forEach(name => {
+        errors.push({line: lines.length-1, msg:`Missing </${name}>`});
+        errorCount++;
+      });
     }
 
     if (ext === 'css') {
-      const lines = code.split('\n');
-      lines.forEach(line => {
-        if (line.trim() && !line.trim().endsWith(';') && !line.includes('{') && !line.includes('}')) errors++;
-      });
-      const stack = [];
-      for (let c of code) {
-        if (c === '{') stack.push(c);
-        if (c === '}') {
-          if (stack.length) stack.pop(); else errors++;
+      let braceCount = 0;
+      lines.forEach((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        braceCount += (trimmed.match(/{/g)||[]).length;
+        braceCount -= (trimmed.match(/}/g)||[]).length;
+        if (trimmed && !trimmed.endsWith(';') && !trimmed.includes('{') && !trimmed.includes('}')) {
+          errors.push({line:i, msg:'Missing semicolon'});
+          errorCount++;
         }
+      });
+      if (braceCount !== 0) {
+        errors.push({line: lines.length-1, msg: `Brace mismatch: ${braceCount > 0 ? 'missing }' : 'extra }'}`});
+        errorCount++;
       }
-      errors += stack.length;
     }
 
-    return errors;
+    return { errorCount, errors, highlighted: lines.map((line, i) => {
+      const err = errors.find(e => e.line === i);
+      return err ? `<span class="error-line">${line} // ${err.msg}</span>` : line;
+    }).join('\n') };
   }
 
   function analyzeGroupErrors(groupId, data) {
@@ -201,7 +239,7 @@
             Object.keys(obj).forEach(key => {
               const val = obj[key];
               if (typeof val === 'string') {
-                total += countSyntaxErrors(val, key);
+                total += analyzeCodeWithErrors(val, key).errorCount;
               } else if (typeof val === 'object') {
                 scan(val);
               }
@@ -214,32 +252,39 @@
     return total;
   }
 
-  // === Render Tree ===
+  // === Render Tree with Per-File Error Count ===
   function renderFileTree(container, filesObj, clusterInfo) {
     const root = document.createElement('div');
     root.className = 'tree-root';
 
     function buildNode(obj, parentPath = '') {
       const keys = Object.keys(obj).sort((a,b) => {
-        const aIsDir = obj[a] && typeof obj[a] === 'object';
-        const bIsDir = obj[b] && typeof obj[b] === 'object';
+        const aIsDir = typeof obj[a] === 'object';
+        const bIsDir = typeof obj[b] === 'object';
         return bIsDir - aIsDir || a.localeCompare(b);
       });
 
       keys.forEach(key => {
         const value = obj[key];
         const fullPath = parentPath ? `${parentPath}/${key}` : key;
-        const isDir = value && typeof value === 'object';
+        const isDir = typeof value === 'object';
 
         const node = document.createElement('div');
         node.className = 'tree-node';
 
         const label = document.createElement('div');
         label.className = `tree-label ${isDir ? 'folder' : 'file'}`;
-        label.innerHTML = `
-          <span class="tree-icon">${isDir ? 'Folder' : 'File'}</span>
-          <span>${key}</span>
-        `;
+        
+        if (!isDir) {
+          const { errorCount } = analyzeCodeWithErrors(value, key);
+          label.innerHTML = `
+            <span class="tree-icon">File</span>
+            <span>${key}</span>
+            ${errorCount > 0 ? `<span class="file-error-count">${errorCount}</span>` : ''}
+          `;
+        } else {
+          label.innerHTML = `<span class="tree-icon">Folder</span> <span>${key}</span>`;
+        }
 
         if (isDir) {
           const children = document.createElement('div');
@@ -261,8 +306,9 @@
               pre = null;
             } else {
               if (pre) pre.remove();
+              const analysis = analyzeCodeWithErrors(value, key);
               pre = document.createElement('pre');
-              pre.textContent = value;
+              pre.innerHTML = analysis.highlighted;
 
               if (selectedGroup !== 'all' && clusterInfo) {
                 pre.style.background = clusterInfo.color;
@@ -316,9 +362,18 @@
               "src/": {
                 "App.js": "console.log('Hello'\nconst x = 5",
                 "Button.jsx": "<button>Click</button",
-                "styles.css": ".btn { padding: 10px"
+                "styles.css": ".header { color: red\n.btn { padding: 10px"
               },
               "index.html": "<html><body><h1>Hello</body></html>"
+            }
+          },
+          {
+            version: 2,
+            timestamp: "2025-11-16T10:17:59.000Z",
+            files: {
+              "styles/": {
+                "hgd.css": ".header { color: blue;\n.btn { padding: 12px"
+              }
             }
           }
         ]
@@ -419,7 +474,7 @@
   }
 
   function renderDashboard(data){
-    const container = document.getElementById('dashboard');
+    const container = document.getElementById('opts');
     container.innerHTML='';
 
     const filtered = {};
