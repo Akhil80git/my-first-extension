@@ -10,11 +10,18 @@
     .container {max-width:1000px;margin:auto;}
     .folder{background:white;border:1px solid #ddd;border-radius:10px;margin-bottom:18px;padding:15px;box-shadow:0 2px 5px rgba(0,0,0,.05);}
     .folder h2{margin:0 0 12px;color:#2c3e50;font-size:1.25em;border-bottom:2px solid #eee;padding-bottom:8px;text-transform:uppercase;}
-    .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;}
+    .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;position:relative;}
     button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;margin-right:8px;}
     button:hover{background:#005a99;}
     pre{background:#f4f4f4;padding:12px;margin:10px 0 0 0;border-radius:6px;overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;transition:all .2s ease;}
-    .save-all-badge{background:#ffeb3b;color:#333;font-size:.75em;padding:2px 8px;border-radius:4px;margin-left:10px;font-weight:bold;}
+    .save-all-badge {
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-weight: bold;
+      border-left: 3px solid;
+    }
     .controls{text-align:center;margin-bottom:12px;}
     .notice{text-align:center;font-size:.9em;color:#666;margin-bottom:8px;}
     .group-bar{background:#fff;padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:20px;text-align:center;}
@@ -22,6 +29,7 @@
     .group-btn.active{background:#007acc;color:white;}
     .group-btn.all{background:#4caf50;}
     .group-btn.all.active{background:#388e3c;}
+    .version-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   </style>
 </head>
 <body>
@@ -34,18 +42,12 @@
     </div>
     <div class="notice">Logic: सभी folders मिलाकर timestamps को cluster करते हैं — यदि timestamps का फरक ≤ 3 सेकण्ड हो तो same color group.</div>
 
-    <!-- GROUP BUTTON BAR (TOP) -->
     <div id="groupBar" class="group-bar"></div>
-
     <div id="dashboard"></div>
   </div>
 
 <script>
-  // ============== COLOR PALETTE FOR GROUPS ==========
-  const SAVE_ALL_COLORS = [
-    '#ffebee','#f8bbd0','#e1f5fe','#e8f5e8',
-    '#fff3e0','#f3e5f5','#e0f2f1','#fffde7'
-  ];
+  const SAVE_ALL_COLORS = ['#ffebee','#f8bbd0','#e1f5fe','#e8f5e8','#fff3e0','#f3e5f5','#e0f2f1','#fffde7'];
 
   function toIndianTimeStr(isoOrMs){
     const d = new Date(isoOrMs);
@@ -67,7 +69,15 @@
     return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
   }
 
-  // ============== LOAD DATA =================
+  function isLightColor(hex) {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substr(0,2),16);
+    const g = parseInt(h.substr(2,2),16);
+    const b = parseInt(h.substr(4,2),16);
+    const brightness = (r*299 + g*587 + b*114) / 1000;
+    return brightness > 128;
+  }
+
   async function fetchDashboardFromServer(){
     try{
       const res = await fetch('/fetchDashboard');
@@ -81,29 +91,27 @@
 
   function getSampleData(){
     return {
-      "kml":{
-        versions:[
-          {version:1,timestamp:"2025-11-16T09:13:53Z",files:{"file1.kml":"<kml>v1</kml>"}},
-          {version:2,timestamp:"2025-11-16T09:14:05Z",files:{"file2.kml":"<kml>v2</kml>"}},
-          {version:3,timestamp:"2025-11-16T09:14:22Z",files:{"file3.kml":"<kml>v3</kml>"}}
-        ]
-      },
       "frontend":{
         versions:[
-          {version:1,timestamp:"2025-11-16T09:14:03Z",files:{"index.html":"<html>v1</html>"}},
-          {version:2,timestamp:"2025-11-16T09:14:21Z",files:{"index.html":"<html>v2</html>"}}
+          {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"index.html":"<html>v1</html>"}},
+          {version:2,timestamp:"2025-11-16T10:17:59.000Z",files:{"index.html":"<html>v2</html>"}}
         ]
       },
-      "api":{
+      "jdhsjdj":{
         versions:[
-          {version:1,timestamp:"2025-11-16T09:14:04Z",files:{"server.js":"// api v1"}},
-          {version:2,timestamp:"2025-11-16T09:14:07Z",files:{"server.js":"// api v2"}}
+          {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"main.js":"// v1"}},
+          {version:2,timestamp:"2025-11-16T10:18:00.000Z",files:{"main.js":"// v2"}}
+        ]
+      },
+      "kml":{
+        versions:[
+          {version:1,timestamp:"2025-11-16T10:17:25.000Z",files:{"map.kml":"<kml>v1</kml>"}},
+          {version:2,timestamp:"2025-11-16T10:18:01.000Z",files:{"map.kml":"<kml>v2</kml>"}}
         ]
       }
     };
   }
 
-  // ============== GLOBAL CLUSTERING (3s) ===========
   function clusterGloballyAllVersions(allFolderData){
     const flat=[];
     Object.keys(allFolderData).forEach(f=>{
@@ -138,7 +146,6 @@
 
     clusters.forEach(c=>{
       c.items.forEach(it=>{
-        const key = `${it.folder}::${it.versionObj.version}`;
         it.versionObj._globalCluster = {id:c.id,color:c.color,borderColor:c.borderColor,startMs:c.startMs};
       });
     });
@@ -146,29 +153,27 @@
     return {flat,clusters};
   }
 
-  // ============== RENDERING =================
   let currentData = null;
   let currentClusters = null;
-  let selectedGroup = 'all';   // 'all' or cluster.id
+  let selectedGroup = 'all';
 
   function renderGroupBar(){
     const bar = document.getElementById('groupBar');
     bar.innerHTML='';
 
-    // ALL button
     const allBtn = document.createElement('button');
     allBtn.className='group-btn all';
     allBtn.textContent='All';
     allBtn.onclick=()=>{selectGroup('all');};
     bar.appendChild(allBtn);
 
-    // each cluster button
     currentClusters.forEach(c=>{
       const btn = document.createElement('button');
       btn.className='group-btn';
       btn.textContent=`Group ${c.id}`;
       btn.style.background = c.color;
       btn.style.border=`1px solid ${c.borderColor}`;
+      btn.style.color = isLightColor(c.color) ? '#000' : '#fff';
       btn.onclick=()=>{selectGroup(c.id);};
       bar.appendChild(btn);
     });
@@ -177,13 +182,11 @@
   }
 
   function updateActiveButton(){
-    document.querySelectorAll('#groupBar .group-btn').forEach(b=>{
-      b.classList.remove('active');
-    });
-    const active = selectedGroup==='all'?
+    document.querySelectorAll('#groupBar .group-btn').forEach(b=>b.classList.remove('active'));
+    const activeBtn = selectedGroup==='all'?
       document.querySelector('#groupBar .all'):
-      document.querySelector(`#groupBar .group-btn:nth-child(${selectedGroup})`);
-    if(active) active.classList.add('active');
+      Array.from(document.querySelectorAll('#groupBar .group-btn')).find(b=>b.textContent===`Group ${selectedGroup}`);
+    if(activeBtn) activeBtn.classList.add('active');
   }
 
   function selectGroup(gid){
@@ -196,7 +199,6 @@
     const container = document.getElementById('dashboard');
     container.innerHTML='';
 
-    // filter versions that belong to the selected group (or all)
     const filtered = {};
     Object.keys(data).forEach(f=>{
       const vers = data[f].versions||[];
@@ -217,16 +219,30 @@
         const versionDiv = document.createElement('div');
         versionDiv.className='version';
 
+        const clusterInfo = version._globalCluster;
         const timeStr = toIndianTimeStr(Date.parse(version.timestamp));
-        const clusterInfo = version._globalCluster || null;
-        const badgeHtml = clusterInfo?`<span class="save-all-badge">GROUP #${clusterInfo.id}</span>`:'';
 
-        versionDiv.innerHTML=`
-          <h3 style="margin:0 0 8px;color:#2c3e50;display:flex;align-items:center;gap:10px;">
-            Version ${version.version} - ${timeStr}
-            ${badgeHtml}
-          </h3>
+        const badgeHtml = clusterInfo ? `
+          <span class="save-all-badge" style="
+            background: ${clusterInfo.color};
+            color: ${isLightColor(clusterInfo.color) ? '#000' : '#fff'};
+            border-left-color: ${clusterInfo.borderColor};
+          ">GROUP #${clusterInfo.id}</span>
+        ` : '';
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'version-header';
+        headerDiv.style.background = (selectedGroup === 'all' && clusterInfo) ? clusterInfo.color : '#fff';
+        headerDiv.style.padding = '6px 10px';
+        headerDiv.style.borderRadius = '6px';
+        headerDiv.style.borderLeft = clusterInfo ? `4px solid ${clusterInfo.borderColor}` : '4px solid #ccc';
+        headerDiv.style.marginBottom = '8px';
+        headerDiv.innerHTML = `
+          <strong>Version ${version.version}</strong> - ${timeStr}
+          ${badgeHtml}
         `;
+
+        versionDiv.appendChild(headerDiv);
 
         const btn = document.createElement('button');
         btn.textContent='Reload this version';
@@ -253,13 +269,11 @@
     });
   }
 
-  // ============== MAIN LOAD =================
   async function loadDashboard(useSample=false){
     let data = null;
     if(!useSample) data = await fetchDashboardFromServer();
     if(!data) data = getSampleData();
 
-    // normalise timestamps
     Object.keys(data).forEach(f=>{
       data[f].versions = (data[f].versions||[]).map(v=>Object.assign({},v));
     });
@@ -276,7 +290,6 @@
   document.getElementById('reloadBtn').addEventListener('click',()=>loadDashboard(false));
   document.getElementById('sampleBtn').addEventListener('click',()=>loadDashboard(true));
 
-  // initial load
   loadDashboard(false);
 </script>
 </body>
