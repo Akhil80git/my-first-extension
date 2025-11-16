@@ -1,323 +1,183 @@
-<!doctype html>
-<html lang="hi">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VS Code Folder Versioning - Global 3s Grouping</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f9f9fb; color: #222; }
-    h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }
-    .container { max-width: 1000px; margin: auto; }
-    .folder {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      margin-bottom: 18px;
-      padding: 15px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Version Grouping with Filter</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        margin: 0;
+        padding: 20px;
     }
-    .folder h2 {
-      margin: 0 0 12px;
-      color: #2c3e50;
-      font-size: 1.25em;
-      border-bottom: 2px solid #eee;
-      padding-bottom: 8px;
-      text-transform: uppercase;
+    .folder {
+        margin-bottom: 30px;
+        padding: 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     .version {
-      border-top:1px solid #eee;
-      margin-top:14px;
-      padding-top:14px;
+        padding: 10px 15px;
+        background: #e9e9e9;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        display: block;
     }
-    button {
-      background: #007acc;
-      color: white;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: 0.15s;
-      margin-right: 8px;
+    .group-badge {
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-left: 10px;
+        color: black;
     }
-    button:hover { background: #005a99; }
-    pre {
-      background: #f4f4f4;
-      padding: 12px;
-      margin: 10px 0 0 0;
-      border-radius: 6px;
-      overflow-x: auto;
-      border-left: 5px solid #ccc;
-      font-family: 'Courier New', monospace;
-      transition: all 0.2s ease;
+    .legend-container {
+        margin-top: 30px;
+        padding: 15px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
-    .save-all-badge {
-      background: #ffeb3b;
-      color: #333;
-      font-size: 0.75em;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-left: 10px;
-      font-weight: bold;
+    .legend-btn {
+        padding: 8px 15px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        margin-right: 10px;
+        margin-bottom: 10px;
     }
-    .controls { text-align:center; margin-bottom: 12px; }
-    .notice { text-align:center; font-size:0.9em; color:#666; margin-bottom:8px; }
-  </style>
+    .active-filter {
+        border: 2px solid black;
+    }
+</style>
+
 </head>
 <body>
-  <div class="container">
-    <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
 
-    <div class="controls">
-      <button id="reloadBtn">Load Dashboard</button>
-      <button id="sampleBtn">Load Sample Data</button>
-    </div>
-    <div class="notice">Logic: सभी folders मिलाकर timestamps को cluster करते हैं — यदि timestamps का फरक ≤ 3 सेकण्ड हो तो same color group.</div>
+<div id="folders-container"></div>
 
-    <div id="dashboard"></div>
-  </div>
+<!-- GROUP LEGEND -->
+<div class="legend-container">
+    <strong>Groups:</strong><br><br>
+    <button class="legend-btn" style="background:#ddd" onclick="showAll()">ALL</button>
+
+    <span id="legend-buttons"></span>
+</div>
 
 <script>
-  // ============== COLOR PALETTE FOR GROUPS ==========
-  const SAVE_ALL_COLORS = [
-    '#ffebee', '#f8bbd0', '#e1f5fe', '#e8f5e8',
-    '#fff3e0', '#f3e5f5', '#e0f2f1', '#fffde7'
-  ];
-
-  // Helper: Indian time formatted
-  function toIndianTimeStr(isoOrMs) {
-    const d = new Date(isoOrMs);
-    return d.toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false
-    });
-  }
-
-  // darken color for border left - safe fallback
-  function darken(hex, percent){
-    // hex e.g. #rrggbb
-    const h = hex.replace('#','');
-    const num = parseInt(h,16);
-    let r = (num >> 16) & 0xff;
-    let g = (num >> 8) & 0xff;
-    let b = num & 0xff;
-    r = Math.max(0, Math.min(255, Math.round(r - 2.55 * percent)));
-    g = Math.max(0, Math.min(255, Math.round(g - 2.55 * percent)));
-    b = Math.max(0, Math.min(255, Math.round(b - 2.55 * percent)));
-    const newHex = "#" + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
-    return newHex;
-  }
-
-  // ============== LOAD (SERVER) or SAMPLE DATA =================
-  async function fetchDashboardFromServer() {
-    try {
-      const res = await fetch('/fetchDashboard');
-      if (!res.ok) throw new Error('Server error');
-      return await res.json();
-    } catch (e) {
-      console.warn('Server fetch failed:', e);
-      return null;
-    }
-  }
-
-  // Example sample data - same shape as your original expected API
-  function getSampleData() {
-    // Each folder has versions: { version: number, timestamp: ISO or ms, files: {filename: content} }
-    return {
-      "kml": {
-        versions: [
-          { version: 1, timestamp: "2025-11-16T09:13:53Z", files: { "file1.kml": "<kml>v1</kml>" } },
-          { version: 2, timestamp: "2025-11-16T09:14:05Z", files: { "file2.kml": "<kml>v2</kml>" } },
-          { version: 3, timestamp: "2025-11-16T09:14:22Z", files: { "file3.kml": "<kml>v3</kml>" } }
+    // Dummy Data Example
+    const folders = {
+        "KML": [
+            {version: 1, time: "2025-11-16 15:11:20"},
+            {version: 2, time: "2025-11-16 15:11:23"},
+            {version: 3, time: "2025-11-16 15:12:00"}
+        ],
+        "FRONTEND": [
+            {version: 1, time: "2025-11-16 15:11:22"}
+        ],
+        "JDHSJDJ": [
+            {version: 1, time: "2025-11-16 15:11:20"}
         ]
-      },
-      "frontend": {
-        versions: [
-          { version: 1, timestamp: "2025-11-16T09:14:03Z", files: { "index.html": "<html>v1</html>" } },
-          { version: 2, timestamp: "2025-11-16T09:14:21Z", files: { "index.html": "<html>v2</html>" } }
-        ]
-      },
-      "api": {
-        versions: [
-          { version: 1, timestamp: "2025-11-16T09:14:04Z", files: { "server.js": "// api v1" } },
-          { version: 2, timestamp: "2025-11-16T09:14:07Z", files: { "server.js": "// api v2" } }
-        ]
-      }
     };
-  }
 
-  // ============== GLOBAL CLUSTERING LOGIC (3 seconds) ===========
-  function clusterGloballyAllVersions(allFolderData) {
-    // Build a flat list with references to folder & version
-    const flat = [];
-    Object.keys(allFolderData).forEach(folderName => {
-      const vlist = allFolderData[folderName].versions || [];
-      vlist.forEach(v => {
-        // Ensure timestamp is numeric ms for sorting
-        const t = (typeof v.timestamp === 'number') ? v.timestamp : Date.parse(v.timestamp);
-        flat.push({
-          folder: folderName,
-          versionObj: v,
-          timestampMs: t
+    // Convert time to timestamp
+    function toTimestamp(str) {
+        return new Date(str).getTime();
+    }
+
+    // GLOBAL TIMESTAMP LIST
+    let allVersions = [];
+
+    // Convert folder data to global list
+    for (let folder in folders) {
+        folders[folder].forEach(v => {
+            allVersions.push({
+                folder,
+                version: v.version,
+                time: v.time,
+                timestamp: toTimestamp(v.time)
+            });
         });
-      });
-    });
+    }
 
-    // sort by timestamp asc
-    flat.sort((a,b) => a.timestampMs - b.timestampMs);
+    // SORT by timestamp
+    allVersions.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Now cluster globally: if diff <= 3000ms -> same cluster
-    const clusters = []; // each cluster = { id, startMs, items: [flatIndex...] }
-    let currentCluster = null;
-    for (let i=0;i<flat.length;i++){
-      const item = flat[i];
-      if (!currentCluster) {
-        currentCluster = { id: clusters.length + 1, startMs: item.timestampMs, items: [item] };
-        clusters.push(currentCluster);
-      } else {
-        const diff = item.timestampMs - currentCluster.startMs;
-        if (diff <= 3000) {
-          currentCluster.items.push(item);
+    // Assign groups (3 second rule)
+    let groupNumber = 1;
+    allVersions[0].group = groupNumber;
+
+    for (let i = 1; i < allVersions.length; i++) {
+        const diff = (allVersions[i].timestamp - allVersions[i - 1].timestamp) / 1000;
+        if (diff <= 3) {
+            allVersions[i].group = groupNumber;
         } else {
-          // start a new cluster
-          currentCluster = { id: clusters.length + 1, startMs: item.timestampMs, items: [item] };
-          clusters.push(currentCluster);
+            groupNumber++;
+            allVersions[i].group = groupNumber;
         }
-      }
     }
 
-    // Assign a color to each cluster (rotate colors)
-    clusters.forEach((c, idx) => {
-      c.color = SAVE_ALL_COLORS[idx % SAVE_ALL_COLORS.length];
-      c.borderColor = darken(c.color, 30);
-    });
+    // Store max groups
+    const totalGroups = groupNumber;
 
-    // Map item -> clusterId and color for easy lookup
-    const itemClusterMap = new Map();
-    clusters.forEach(c => {
-      c.items.forEach(it => {
-        // key: folder + '::' + version number (unique enough)
-        const key = `${it.folder}::${(it.versionObj && it.versionObj.version) || Math.random()}`;
-        itemClusterMap.set(key, { clusterId: c.id, color: c.color, borderColor: c.borderColor, startMs: c.startMs });
-        // Also attach cluster meta to the versionObj itself for UI use
-        it.versionObj._globalCluster = { id: c.id, color: c.color, borderColor: c.borderColor, startMs: c.startMs };
-      });
-    });
+    // COLOR MAP
+    const groupColors = ["#ffcccc", "#ffb3d1", "#cce5ff", "#d6f5d6", "#ffe6b3", "#e6ccff"];
 
-    return { flat, clusters, itemClusterMap };
-  }
+    function render(filterGroup = null) {
+        document.getElementById("folders-container").innerHTML = "";
 
-  // ============== RENDERING DASHBOARD =================
-  function renderDashboard(data) {
-    const container = document.getElementById('dashboard');
-    container.innerHTML = ''; // clear
+        for (let folder in folders) {
+            const div = document.createElement("div");
+            div.className = "folder";
 
-    // compute global clusters
-    const { clusters } = clusterGloballyAllVersions(data);
+            div.innerHTML += `<h2>${folder}</h2><hr>`;
 
-    // For UI, we still show folder boxes but versions will have cluster color info attached
-    Object.keys(data).forEach(folderName => {
-      const folderDiv = document.createElement('div');
-      folderDiv.className = 'folder';
-      folderDiv.innerHTML = `<h2>${folderName}</h2>`;
+            allVersions
+                .filter(v => v.folder === folder)
+                .filter(v => (filterGroup ? v.group === filterGroup : true))
+                .forEach(v => {
+                    div.innerHTML += `
+                        <div class="version">
+                            Version ${v.version} - ${v.time}
+                            <span class="group-badge" style="background:${groupColors[v.group - 1]}">
+                                GROUP #${v.group}
+                            </span>
+                        </div>
+                    `;
+                });
 
-      data[folderName].versions.forEach(version => {
-        const versionDiv = document.createElement('div');
-        versionDiv.className = 'version';
-
-        const timeStr = toIndianTimeStr(Date.parse(version.timestamp));
-        const clusterInfo = version._globalCluster || null;
-        const badgeHtml = clusterInfo ? `<span class="save-all-badge">GROUP #${clusterInfo.id}</span>` : '';
-
-        versionDiv.innerHTML = `
-          <h3 style="margin:0 0 8px; color:#2c3e50; display:flex; align-items:center; gap:10px;">
-            Version ${version.version} - ${timeStr}
-            ${badgeHtml}
-          </h3>
-        `;
-
-        const btn = document.createElement('button');
-        btn.textContent = 'Reload this version';
-        btn.onclick = () => {
-          // remove any previous pre inside this versionDiv
-          versionDiv.querySelectorAll('pre').forEach(p => p.remove());
-
-          // For each file, create pre with group color if assigned
-          Object.keys(version.files || {}).forEach(filename => {
-            const pre = document.createElement('pre');
-            pre.textContent = `${filename}:\n${version.files[filename]}`;
-
-            if (clusterInfo) {
-              pre.style.background = clusterInfo.color;
-              pre.style.borderLeftColor = clusterInfo.borderColor;
-            } else {
-              pre.style.background = '#f4f4f4';
-              pre.style.borderLeftColor = '#ccc';
-            }
-            versionDiv.appendChild(pre);
-          });
-        };
-
-        versionDiv.appendChild(btn);
-        folderDiv.appendChild(versionDiv);
-      });
-
-      container.appendChild(folderDiv);
-    });
-
-    // also show a legend of clusters at bottom (optional)
-    if (clusters.length) {
-      const legend = document.createElement('div');
-      legend.style.marginTop = '10px';
-      legend.style.padding = '10px';
-      legend.style.background = '#fff';
-      legend.style.border = '1px solid #eee';
-      legend.style.borderRadius = '8px';
-      legend.innerHTML = `<strong>Groups legend:</strong>`;
-      clusters.forEach(c => {
-        const s = document.createElement('div');
-        s.style.display = 'inline-block';
-        s.style.margin = '8px';
-        s.style.padding = '6px 10px';
-        s.style.borderRadius = '6px';
-        s.style.background = c.color;
-        s.style.border = `1px solid ${c.borderColor}`;
-        s.textContent = `Group ${c.id}`;
-        legend.appendChild(s);
-      });
-      container.appendChild(legend);
-    }
-  }
-
-  // ============== MAIN LOAD FUNCTION =================
-  async function loadDashboard(useSample=false) {
-    let data = null;
-    if (!useSample) {
-      data = await fetchDashboardFromServer();
-    }
-    if (!data) {
-      data = getSampleData();
+            document.getElementById("folders-container").appendChild(div);
+        }
     }
 
-    // IMPORTANT: ensure versions arrays exist and timestamp parseable
-    Object.keys(data).forEach(folder => {
-      data[folder].versions = (data[folder].versions || []).map(v => {
-        // Normalize timestamp into ISO string if needed - keep original too
-        return Object.assign({}, v);
-      });
-    });
+    // Render group legend buttons
+    function renderLegend() {
+        const legendDiv = document.getElementById("legend-buttons");
+        for (let i = 1; i <= totalGroups; i++) {
+            const btn = document.createElement("button");
+            btn.className = "legend-btn";
+            btn.style.background = groupColors[i - 1];
+            btn.innerText = "Group " + i;
+            btn.onclick = () => filterByGroup(i);
+            legendDiv.appendChild(btn);
+        }
+    }
 
-    renderDashboard(data);
-  }
+    // FILTER FUNCTIONS
+    function filterByGroup(groupId) {
+        render(groupId);
+    }
 
-  // Buttons
-  document.getElementById('reloadBtn').addEventListener('click', () => loadDashboard(false));
-  document.getElementById('sampleBtn').addEventListener('click', () => loadDashboard(true));
+    function showAll() {
+        render(null);
+    }
 
-  // initial load (use sample if server not present)
-  loadDashboard(false);
+    // INITIAL LOAD
+    render();
+    renderLegend();
 </script>
+
 </body>
 </html>
