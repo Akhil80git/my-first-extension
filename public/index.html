@@ -1,182 +1,232 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="hi">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Version Grouping with Filter</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VS Code Folder Versioning - Global 3s Grouping</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding-top: 70px; background: #f9f9fb; color: #222; }
 
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f5f5f5;
-        margin: 0;
-        padding: 20px;
+    /* ---------- TOP FIXED NAV ---------- */
+    .topnav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: white;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      z-index: 9999;
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
     }
+    .topnav button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      background: #007acc;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .topnav button.active {
+      background: #005a99;
+      border: 2px solid black;
+    }
+
+    /* ---------- OLD CODE KEEPED SAME ---------- */
+    .container { max-width: 1000px; margin: auto; padding: 20px; }
+    h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }
     .folder {
-        margin-bottom: 30px;
-        padding: 20px;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .folder h2 {
+      margin: 0 0 12px;
+      color: #2c3e50;
+      font-size: 1.25em;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 8px;
+      text-transform: uppercase;
     }
     .version {
-        padding: 10px 15px;
-        background: #e9e9e9;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        display: block;
+      border-top:1px solid #eee;
+      margin-top:14px;
+      padding-top:14px;
     }
-    .group-badge {
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 13px;
-        margin-left: 10px;
-        color: black;
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.15s;
+      margin-right: 8px;
     }
-    .legend-container {
-        margin-top: 30px;
-        padding: 15px;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    pre {
+      background: #f4f4f4;
+      padding: 12px;
+      margin: 10px 0 0 0;
+      border-radius: 6px;
+      overflow-x: auto;
+      border-left: 5px solid #ccc;
+      font-family: 'Courier New', monospace;
     }
-    .legend-btn {
-        padding: 8px 15px;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        margin-right: 10px;
-        margin-bottom: 10px;
+    .save-all-badge {
+      background: #ffeb3b;
+      color: #333;
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-weight: bold;
     }
-    .active-filter {
-        border: 2px solid black;
-    }
-</style>
-
+    .notice { text-align:center; font-size:0.9em; color:#666; margin-bottom:8px; }
+  </style>
 </head>
 <body>
 
-<div id="folders-container"></div>
+<!-- TOP FIXED NAV -->
+<div class="topnav" id="topnav"></div>
 
-<!-- GROUP LEGEND -->
-<div class="legend-container">
-    <strong>Groups:</strong><br><br>
-    <button class="legend-btn" style="background:#ddd" onclick="showAll()">ALL</button>
-
-    <span id="legend-buttons"></span>
+<div class="container">
+  <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
+  <div class="notice">Logic: सभी folders के timestamps को cluster → difference ≤ 3 seconds = same group.</div>
+  <div id="dashboard"></div>
 </div>
 
 <script>
-    // Dummy Data Example
-    const folders = {
-        "KML": [
-            {version: 1, time: "2025-11-16 15:11:20"},
-            {version: 2, time: "2025-11-16 15:11:23"},
-            {version: 3, time: "2025-11-16 15:12:00"}
-        ],
-        "FRONTEND": [
-            {version: 1, time: "2025-11-16 15:11:22"}
-        ],
-        "JDHSJDJ": [
-            {version: 1, time: "2025-11-16 15:11:20"}
+  /* --- COLORS SAME --- */
+  const SAVE_ALL_COLORS = ['#ffebee','#f8bbd0','#e1f5fe','#e8f5e8','#fff3e0','#f3e5f5','#e0f2f1','#fffde7'];
+
+  function darken(hex, percent) {
+    const h = hex.replace('#','');
+    const num = parseInt(h,16);
+    let r = (num >> 16) & 0xff;
+    let g = (num >> 8) & 0xff;
+    let b = num & 0xff;
+    r = Math.max(0, Math.min(255, Math.round(r - 2.55 * percent)));
+    g = Math.max(0, Math.min(255, Math.round(g - 2.55 * percent)));
+    b = Math.max(0, Math.min(255, Math.round(b - 2.55 * percent)));
+    return "#" + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+  }
+
+  function toIndianTimeStr(x) {
+    return new Date(x).toLocaleString('en-IN', { hour12: false });
+  }
+
+  function getSampleData() {
+    return {
+      "kml": {
+        versions: [
+          { version: 1, timestamp: "2025-11-16T09:13:53Z", files:{a:"kml1"}},
+          { version: 2, timestamp: "2025-11-16T09:13:55Z", files:{a:"kml2"}},
+          { version: 3, timestamp: "2025-11-16T09:14:20Z", files:{a:"kml3"}},
         ]
+      },
+      "frontend": {
+        versions: [
+          { version: 1, timestamp: "2025-11-16T09:13:54Z", files:{b:"front1"}},
+          { version: 2, timestamp: "2025-11-16T09:14:19Z", files:{b:"front2"}},
+        ]
+      }
     };
+  }
 
-    // Convert time to timestamp
-    function toTimestamp(str) {
-        return new Date(str).getTime();
-    }
+  function cluster(data) {
+    const flat=[];
+    Object.keys(data).forEach(folder=>{
+      data[folder].versions.forEach(v=>{
+        flat.push({
+          folder, v,
+          t: Date.parse(v.timestamp)
+        })
+      })
+    });
+    flat.sort((a,b)=>a.t-b.t);
 
-    // GLOBAL TIMESTAMP LIST
-    let allVersions = [];
+    let clusters=[]; let now=null;
+    flat.forEach(it=>{
+      if(!now){
+        now={id:1,start:it.t,items:[it]};
+        clusters.push(now);
+      } else {
+        if(it.t - now.start <= 3000) now.items.push(it);
+        else { now={id:clusters.length+1,start:it.t,items:[it]}; clusters.push(now); }
+      }
+    });
 
-    // Convert folder data to global list
-    for (let folder in folders) {
-        folders[folder].forEach(v => {
-            allVersions.push({
-                folder,
-                version: v.version,
-                time: v.time,
-                timestamp: toTimestamp(v.time)
-            });
-        });
-    }
+    clusters.forEach((c,i)=>{
+      c.color = SAVE_ALL_COLORS[i % SAVE_ALL_COLORS.length];
+      c.border = darken(c.color,30);
+      c.items.forEach(it=>{
+        it.v._cluster = { id:c.id, color:c.color, border:c.border };
+      });
+    });
 
-    // SORT by timestamp
-    allVersions.sort((a, b) => a.timestamp - b.timestamp);
+    return clusters;
+  }
 
-    // Assign groups (3 second rule)
-    let groupNumber = 1;
-    allVersions[0].group = groupNumber;
+  let globalData=null;
+  let globalClusters=[];
 
-    for (let i = 1; i < allVersions.length; i++) {
-        const diff = (allVersions[i].timestamp - allVersions[i - 1].timestamp) / 1000;
-        if (diff <= 3) {
-            allVersions[i].group = groupNumber;
-        } else {
-            groupNumber++;
-            allVersions[i].group = groupNumber;
-        }
-    }
+  function renderDashboard(filterGroup=null){
+    const dash=document.getElementById("dashboard");
+    dash.innerHTML="";
 
-    // Store max groups
-    const totalGroups = groupNumber;
+    Object.keys(globalData).forEach(folder=>{
+      const box=document.createElement("div");
+      box.className="folder";
+      box.innerHTML=`<h2>${folder}</h2>`;
 
-    // COLOR MAP
-    const groupColors = ["#ffcccc", "#ffb3d1", "#cce5ff", "#d6f5d6", "#ffe6b3", "#e6ccff"];
+      globalData[folder].versions
+      .filter(v => filterGroup ? v._cluster.id==filterGroup : true)
+      .forEach(v=>{
+        const div=document.createElement("div");
+        div.className="version";
+        const info=v._cluster;
+        div.innerHTML=`<h3>Version ${v.version} - ${toIndianTimeStr(v.timestamp)}
+            <span class="save-all-badge">GROUP #${info.id}</span></h3>`;
+        box.appendChild(div);
+      });
 
-    function render(filterGroup = null) {
-        document.getElementById("folders-container").innerHTML = "";
+      dash.appendChild(box);
+    });
+  }
 
-        for (let folder in folders) {
-            const div = document.createElement("div");
-            div.className = "folder";
+  function renderTopNav(){
+    const nav=document.getElementById("topnav");
+    nav.innerHTML="";
 
-            div.innerHTML += `<h2>${folder}</h2><hr>`;
+    const allBtn=document.createElement("button");
+    allBtn.textContent="ALL";
+    allBtn.onclick=()=>renderDashboard(null);
+    nav.appendChild(allBtn);
 
-            allVersions
-                .filter(v => v.folder === folder)
-                .filter(v => (filterGroup ? v.group === filterGroup : true))
-                .forEach(v => {
-                    div.innerHTML += `
-                        <div class="version">
-                            Version ${v.version} - ${v.time}
-                            <span class="group-badge" style="background:${groupColors[v.group - 1]}">
-                                GROUP #${v.group}
-                            </span>
-                        </div>
-                    `;
-                });
+    globalClusters.forEach(c=>{
+      const b=document.createElement("button");
+      b.textContent="GROUP "+c.id;
+      b.onclick=()=>renderDashboard(c.id);
+      nav.appendChild(b);
+    });
+  }
 
-            document.getElementById("folders-container").appendChild(div);
-        }
-    }
+  function load(){
+    globalData=getSampleData();
+    globalClusters = cluster(globalData);
+    renderTopNav();
+    renderDashboard(null);
+  }
 
-    // Render group legend buttons
-    function renderLegend() {
-        const legendDiv = document.getElementById("legend-buttons");
-        for (let i = 1; i <= totalGroups; i++) {
-            const btn = document.createElement("button");
-            btn.className = "legend-btn";
-            btn.style.background = groupColors[i - 1];
-            btn.innerText = "Group " + i;
-            btn.onclick = () => filterByGroup(i);
-            legendDiv.appendChild(btn);
-        }
-    }
-
-    // FILTER FUNCTIONS
-    function filterByGroup(groupId) {
-        render(groupId);
-    }
-
-    function showAll() {
-        render(null);
-    }
-
-    // INITIAL LOAD
-    render();
-    renderLegend();
+  load();
 </script>
 
 </body>
