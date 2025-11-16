@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <title>VS Code Folder Versioning</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; }
@@ -8,7 +9,14 @@
     .container { max-width: 900px; margin: auto; }
     .folder { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; }
     button { margin: 5px 0; padding: 5px 10px; cursor: pointer; }
-    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      overflow-x: auto;
+      margin: 5px 0;
+      border-left: 4px solid transparent;
+    }
+    .all-save { transition: background 0.3s; }
   </style>
 </head>
 <body>
@@ -18,6 +26,42 @@
   </div>
 
   <script>
+    // -----------------------------------------------------------------
+    // 1. Colour palette for successive “all-save” events
+    // -----------------------------------------------------------------
+    const COLOR_PALETTE = [
+      '#e6f9e6', // light green
+      '#fff3cd', // light yellow
+      '#d1ecf1', // light cyan
+      '#f8d7da', // light red
+      '#d4edda', // another green
+      '#f1d4f1', // light purple
+      '#d6d8db'  // light gray
+    ];
+
+    // -----------------------------------------------------------------
+    // 2. Convert UTC → Indian time (Asia/Kolkata)
+    // -----------------------------------------------------------------
+    function toIndianTime(utcString) {
+      const date = new Date(utcString);
+      return date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+    }
+
+    // -----------------------------------------------------------------
+    // 3. Main loader
+    // -----------------------------------------------------------------
+    let allSaveCounter = 0;               // how many all-saves we have seen
+    const allSaveColorMap = new Map();    // versionIndex → colour
+
     async function loadDashboard() {
       const res = await fetch('/fetchDashboard');
       const data = await res.json();
@@ -29,28 +73,49 @@
         folderDiv.className = 'folder';
         folderDiv.innerHTML = `<h2>${folder.toUpperCase()}</h2>`;
 
-        data[folder].versions.forEach(v => {
+        data[folder].versions.forEach((v, vIdx) => {
+          // ---------- prepare colour for this version ----------
+          let versionColor = null;
+          if (v.isAllSave) {
+            if (!allSaveColorMap.has(vIdx)) {
+              const paletteIdx = allSaveCounter % COLOR_PALETTE.length;
+              versionColor = COLOR_PALETTE[paletteIdx];
+              allSaveColorMap.set(vIdx, versionColor);
+              allSaveCounter++;
+            } else {
+              versionColor = allSaveColorMap.get(vIdx);
+            }
+          }
+
           const versionDiv = document.createElement('div');
           versionDiv.style.borderTop = "1px solid #999";
           versionDiv.style.marginTop = "10px";
           versionDiv.style.paddingTop = "10px";
-          versionDiv.innerHTML = `<h3>Version ${v.version} - ${v.timestamp}</h3>`;
+
+          const niceTime = toIndianTime(v.timestamp);
+          versionDiv.innerHTML = `<h3>Version ${v.version} - ${niceTime}</h3>`;
 
           const btn = document.createElement('button');
           btn.textContent = "Reload this version";
           btn.onclick = () => {
-            // Clear previous version code display
-            const existingPre = versionDiv.querySelectorAll("pre");
-            existingPre.forEach(p => p.remove());
+            // remove old <pre> blocks
+            versionDiv.querySelectorAll("pre").forEach(p => p.remove());
 
             Object.keys(v.files).forEach(file => {
               const pre = document.createElement('pre');
               pre.textContent = `${file}:\n${v.files[file]}`;
+
+              // ----- APPLY COLOUR -----
+              if (v.isAllSave && versionColor) {
+                pre.style.background = versionColor;
+                pre.classList.add('all-save');
+              }
+              // otherwise default white (no extra class)
+
               versionDiv.appendChild(pre);
             });
           };
           versionDiv.appendChild(btn);
-
           folderDiv.appendChild(versionDiv);
         });
 
@@ -58,6 +123,7 @@
       });
     }
 
+    // -----------------------------------------------------------------
     loadDashboard();
   </script>
 </body>
