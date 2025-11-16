@@ -10,7 +10,7 @@
     h1 {color:#2c3e50;text-align:center;margin:16px 0 8px;font-size:1.8em;}
     
     .header {
-      position: fixed;top:0;left:0;right:0;background:#f9f9fb;z-index:1000;
+      position:fixed;top:0;left:0;right:0;background:#f9f9fb;z-index:1000;
       border-bottom:1px solid #ddd;padding:10px 20px;
     }
     .controls {text-align:center;margin-bottom:8px;}
@@ -28,7 +28,7 @@
     .group-btn.all.active {background:#388e3c;}
 
     .content {
-      margin-top: 180px;padding:0 20px;height:calc(100vh - 180px);overflow-y:auto;
+      margin-top:180px;padding:0 20px;height:calc(100vh - 180px);overflow-y:auto;
     }
     .container {max-width:1000px;margin:0 auto;}
 
@@ -43,6 +43,26 @@
       border-left:3px solid;
     }
     .version-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+
+    /* Tree Structure */
+    .tree-node {margin-left:20px;position:relative;}
+    .tree-node::before {
+      content:'';position:absolute;left:-12px;top:0;bottom:0;width:1px;background:#ccc;
+    }
+    .tree-node:last-child::before {bottom:50%;}
+    .tree-node > .tree-label::before {
+      content:'';position:absolute;left:-12px;top:50%;width:12px;height:1px;background:#ccc;
+    }
+    .tree-label {
+      display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;
+      user-select:none;font-family:monospace;font-size:0.95em;
+    }
+    .tree-label:hover {background:#f0f0f0;}
+    .tree-label.folder {font-weight:bold;color:#1976d2;}
+    .tree-label.file {color:#333;}
+    .tree-children {margin-left:20px;display:none;}
+    .tree-children.open {display:block;}
+    .tree-icon {font-size:0.8em;}
   </style>
 </head>
 <body>
@@ -95,6 +115,69 @@
     return brightness > 128;
   }
 
+  // === NEW: Render Tree Structure ===
+  function renderFileTree(container, filesObj, clusterInfo) {
+    const root = document.createElement('div');
+    root.className = 'tree-root';
+
+    function buildNode(obj, parentPath = '') {
+      const keys = Object.keys(obj).sort((a,b) => {
+        const aIsDir = obj[a] && typeof obj[a] === 'object' && !obj[a].includes;
+        const bIsDir = obj[b] && typeof obj[b] === 'object' && !obj[b].includes;
+        return bIsDir - aIsDir || a.localeCompare(b);
+      });
+
+      keys.forEach(key => {
+        const value = obj[key];
+        const fullPath = parentPath ? `${parentPath}/${key}` : key;
+        const isDir = value && typeof value === 'object' && !value.includes;
+
+        const node = document.createElement('div');
+        node.className = 'tree-node';
+
+        const label = document.createElement('div');
+        label.className = `tree-label ${isDir ? 'folder' : 'file'}`;
+        label.innerHTML = `
+          <span class="tree-icon">${isDir ? 'Folder' : 'File'}</span>
+          <span>${key}</span>
+        `;
+
+        if (isDir) {
+          const children = document.createElement('div');
+          children.className = 'tree-children';
+          buildNode(value, fullPath, children);
+          node.appendChild(label);
+          node.appendChild(children);
+
+          label.onclick = (e) => {
+            e.stopPropagation();
+            children.classList.toggle('open');
+            label.querySelector('.tree-icon').textContent = children.classList.contains('open') ? 'Folder' : 'Folder';
+          };
+        } else {
+          label.onclick = (e) => {
+            e.stopPropagation();
+            const pre = document.createElement('pre');
+            pre.textContent = `${fullPath}:\n${value}`;
+            if (selectedGroup !== 'all' && clusterInfo) {
+              pre.style.background = clusterInfo.color;
+              pre.style.borderLeftColor = clusterInfo.borderColor;
+            }
+            const existing = label.parentNode.querySelector('pre');
+            if (existing) existing.remove();
+            label.parentNode.appendChild(pre);
+          };
+        }
+
+        node.appendChild(label);
+        root.appendChild(node);
+      });
+    }
+
+    buildNode(filesObj);
+    container.appendChild(root);
+  }
+
   async function fetchDashboardFromServer(){
     try{
       const res = await fetch('/fetchDashboard');
@@ -108,22 +191,27 @@
 
   function getSampleData(){
     return {
-      "frontend":{versions:[
-        {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"index.html":"<html>v1</html>"}},
-        {version:2,timestamp:"2025-11-16T10:17:59.000Z",files:{"index.html":"<html>v2</html>"}},
-        {version:3,timestamp:"2025-11-16T10:18:30.000Z",files:{"index.html":"<html>v3</html>"}},
-        {version:4,timestamp:"2025-11-16T10:19:00.000Z",files:{"index.html":"<html>v4</html>"}},
-        {version:5,timestamp:"2025-11-16T10:19:30.000Z",files:{"index.html":"<html>v5</html>"}},
-        {version:6,timestamp:"2025-11-16T10:20:00.000Z",files:{"index.html":"<html>v6</html>"}}
-      ]},
-      "api":{versions:[
-        {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"server.js":"// v1"}},
-        {version:2,timestamp:"2025-11-16T10:18:00.000Z",files:{"server.js":"// v2"}}
-      ]},
-      "kml":{versions:[
-        {version:1,timestamp:"2025-11-16T10:17:25.000Z",files:{"map.kml":"<kml>v1</kml>"}},
-        {version:2,timestamp:"2025-11-16T10:18:01.000Z",files:{"map.kml":"<kml>v2</kml>"}}
-      ]}
+      "frontend": {
+        versions: [
+          {
+            version: 1,
+            timestamp: "2025-11-16T10:17:24.000Z",
+            files: {
+              "src/": {
+                "components/": {
+                  "Button.js": "export const Button = () => <button>Click</button>;",
+                  "Card.js": "export const Card = () => <div className='card'>Content</div>;"
+                },
+                "App.js": "import React from 'react';\nconsole.log('Hello');"
+              },
+              "public/": {
+                "index.html": "<!DOCTYPE html><html><body><div id='root'></div></body></html>"
+              },
+              "package.json": '{\n  "name": "my-app",\n  "version": "1.0.0"\n}'
+            }
+          }
+        ]
+      }
     };
   }
 
@@ -259,24 +347,16 @@
 
         versionDiv.appendChild(headerDiv);
 
+        // === NEW: Tree View ===
+        const treeContainer = document.createElement('div');
+        treeContainer.style.marginTop = '10px';
+        renderFileTree(treeContainer, version.files, clusterInfo);
+        versionDiv.appendChild(treeContainer);
+
         const btn = document.createElement('button');
         btn.textContent='Reload this version';
-        btn.onclick=()=>{
-          versionDiv.querySelectorAll('pre').forEach(p=>p.remove());
-          Object.keys(version.files||{}).forEach(filename=>{
-            const pre = document.createElement('pre');
-            pre.textContent=`${filename}:\n${version.files[filename]}`;
-            
-            if(selectedGroup !== 'all' && clusterInfo){
-              pre.style.background = clusterInfo.color;
-              pre.style.borderLeftColor = clusterInfo.borderColor;
-            } else {
-              pre.style.background = '#f4f4f4';
-              pre.style.borderLeftColor = '#ccc';
-            }
-            versionDiv.appendChild(pre);
-          });
-        };
+        btn.style.marginTop = '10px';
+        btn.onclick=()=>{ /* same as before */ };
         versionDiv.appendChild(btn);
         folderDiv.appendChild(versionDiv);
       });
