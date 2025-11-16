@@ -5,45 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>VS Code Folder Versioning - Global 3s Grouping</title>
   <style>
-    body {font-family:Arial,sans-serif;margin:24px;background:#f9f9fb;color:#222;}
-    h1 {color:#2c3e50;text-align:center;margin-bottom:20px;}
-    .container {max-width:1000px;margin:auto;}
+    * { box-sizing: border-box; }
+    body {font-family:Arial,sans-serif;margin:0;background:#f9f9fb;color:#222;overflow:hidden;}
+    h1 {color:#2c3e50;text-align:center;margin:16px 0 8px;font-size:1.8em;}
+    
+    .header {
+      position: fixed;top:0;left:0;right:0;background:#f9f9fb;z-index:1000;
+      border-bottom:1px solid #ddd;padding:10px 20px;
+    }
+    .controls {text-align:center;margin-bottom:8px;}
+    .notice {text-align:center;font-size:.9em;color:#666;margin:6px 0;}
+    .group-bar {
+      background:#fff;padding:10px;border:1px solid #eee;border-radius:8px;
+      text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.08);
+    }
+    .group-btn {
+      margin:3px;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;
+      border:1px solid transparent;
+    }
+    .group-btn.active {background:#007acc;color:white;}
+    .group-btn.all {background:#4caf50;color:white;}
+    .group-btn.all.active {background:#388e3c;}
+
+    .content {
+      margin-top: 180px;padding:0 20px;height:calc(100vh - 180px);overflow-y:auto;
+    }
+    .container {max-width:1000px;margin:0 auto;}
+
     .folder{background:white;border:1px solid #ddd;border-radius:10px;margin-bottom:18px;padding:15px;box-shadow:0 2px 5px rgba(0,0,0,.05);}
     .folder h2{margin:0 0 12px;color:#2c3e50;font-size:1.25em;border-bottom:2px solid #eee;padding-bottom:8px;text-transform:uppercase;}
-    .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;position:relative;}
-    button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;margin-right:8px;}
+    .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;}
+    button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;}
     button:hover{background:#005a99;}
-    pre{background:#f4f4f4;padding:12px;margin:10px 0 0 0;border-radius:6px;overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;transition:all .2s ease;}
+    pre{background:#f4f4f4;padding:12px;margin:10px 0 0 0;border-radius:6px;overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;}
     .save-all-badge {
-      font-size: 0.75em;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-left: 10px;
-      font-weight: bold;
-      border-left: 3px solid;
+      font-size:0.75em;padding:2px 8px;border-radius:4px;margin-left:10px;font-weight:bold;
+      border-left:3px solid;
     }
-    .controls{text-align:center;margin-bottom:12px;}
-    .notice{text-align:center;font-size:.9em;color:#666;margin-bottom:8px;}
-    .group-bar{background:#fff;padding:12px;border:1px solid #eee;border-radius:8px;margin-bottom:20px;text-align:center;}
-    .group-btn{margin:4px;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;}
-    .group-btn.active{background:#007acc;color:white;}
-    .group-btn.all{background:#4caf50;}
-    .group-btn.all.active{background:#388e3c;}
     .version-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
 
+  <div class="header">
+    <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
     <div class="controls">
       <button id="reloadBtn">Load Dashboard</button>
       <button id="sampleBtn">Load Sample Data</button>
     </div>
     <div class="notice">Logic: सभी folders मिलाकर timestamps को cluster करते हैं — यदि timestamps का फरक ≤ 3 सेकण्ड हो तो same color group.</div>
-
     <div id="groupBar" class="group-bar"></div>
-    <div id="dashboard"></div>
+  </div>
+
+  <div class="content">
+    <div class="container">
+      <div id="dashboard"></div>
+    </div>
   </div>
 
 <script>
@@ -91,24 +108,22 @@
 
   function getSampleData(){
     return {
-      "frontend":{
-        versions:[
-          {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"index.html":"<html>v1</html>"}},
-          {version:2,timestamp:"2025-11-16T10:17:59.000Z",files:{"index.html":"<html>v2</html>"}}
-        ]
-      },
-      "jdhsjdj":{
-        versions:[
-          {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"main.js":"// v1"}},
-          {version:2,timestamp:"2025-11-16T10:18:00.000Z",files:{"main.js":"// v2"}}
-        ]
-      },
-      "kml":{
-        versions:[
-          {version:1,timestamp:"2025-11-16T10:17:25.000Z",files:{"map.kml":"<kml>v1</kml>"}},
-          {version:2,timestamp:"2025-11-16T10:18:01.000Z",files:{"map.kml":"<kml>v2</kml>"}}
-        ]
-      }
+      "frontend":{versions:[
+        {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"index.html":"<html>v1</html>"}},
+        {version:2,timestamp:"2025-11-16T10:17:59.000Z",files:{"index.html":"<html>v2</html>"}},
+        {version:3,timestamp:"2025-11-16T10:18:30.000Z",files:{"index.html":"<html>v3</html>"}},
+        {version:4,timestamp:"2025-11-16T10:19:00.000Z",files:{"index.html":"<html>v4</html>"}},
+        {version:5,timestamp:"2025-11-16T10:19:30.000Z",files:{"index.html":"<html>v5</html>"}},
+        {version:6,timestamp:"2025-11-16T10:20:00.000Z",files:{"index.html":"<html>v6</html>"}}
+      ]},
+      "api":{versions:[
+        {version:1,timestamp:"2025-11-16T10:17:24.000Z",files:{"server.js":"// v1"}},
+        {version:2,timestamp:"2025-11-16T10:18:00.000Z",files:{"server.js":"// v2"}}
+      ]},
+      "kml":{versions:[
+        {version:1,timestamp:"2025-11-16T10:17:25.000Z",files:{"map.kml":"<kml>v1</kml>"}},
+        {version:2,timestamp:"2025-11-16T10:18:01.000Z",files:{"map.kml":"<kml>v2</kml>"}}
+      ]}
     };
   }
 
@@ -172,7 +187,7 @@
       btn.className='group-btn';
       btn.textContent=`Group ${c.id}`;
       btn.style.background = c.color;
-      btn.style.border=`1px solid ${c.borderColor}`;
+      btn.style.border = `1px solid ${c.borderColor}`;
       btn.style.color = isLightColor(c.color) ? '#000' : '#fff';
       btn.onclick=()=>{selectGroup(c.id);};
       bar.appendChild(btn);
@@ -224,15 +239,15 @@
 
         const badgeHtml = clusterInfo ? `
           <span class="save-all-badge" style="
-            background: ${clusterInfo.color};
-            color: ${isLightColor(clusterInfo.color) ? '#000' : '#fff'};
-            border-left-color: ${clusterInfo.borderColor};
+            background:${clusterInfo.color};
+            color:${isLightColor(clusterInfo.color)?'#000':'#fff'};
+            border-left-color:${clusterInfo.borderColor};
           ">GROUP #${clusterInfo.id}</span>
         ` : '';
 
         const headerDiv = document.createElement('div');
         headerDiv.className = 'version-header';
-        headerDiv.style.background = (selectedGroup === 'all' && clusterInfo) ? clusterInfo.color : '#fff';
+        headerDiv.style.background = (selectedGroup !== 'all' && clusterInfo) ? clusterInfo.color : '#fff';
         headerDiv.style.padding = '6px 10px';
         headerDiv.style.borderRadius = '6px';
         headerDiv.style.borderLeft = clusterInfo ? `4px solid ${clusterInfo.borderColor}` : '4px solid #ccc';
@@ -251,12 +266,13 @@
           Object.keys(version.files||{}).forEach(filename=>{
             const pre = document.createElement('pre');
             pre.textContent=`${filename}:\n${version.files[filename]}`;
-            if(clusterInfo){
-              pre.style.background=clusterInfo.color;
-              pre.style.borderLeftColor=clusterInfo.borderColor;
-            }else{
-              pre.style.background='#f4f4f4';
-              pre.style.borderLeftColor='#ccc';
+            
+            if(selectedGroup !== 'all' && clusterInfo){
+              pre.style.background = clusterInfo.color;
+              pre.style.borderLeftColor = clusterInfo.borderColor;
+            } else {
+              pre.style.background = '#f4f4f4';
+              pre.style.borderLeftColor = '#ccc';
             }
             versionDiv.appendChild(pre);
           });
