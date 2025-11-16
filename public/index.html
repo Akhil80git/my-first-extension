@@ -4,22 +4,54 @@
   <meta charset="utf-8">
   <title>VS Code Folder Versioning</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    h1 { color: #333; }
-    .container { max-width: 900px; margin: auto; }
-    .folder { margin-bottom: 30px; border: 1px solid #ccc; padding: 10px; border-radius: 8px; }
-    button { margin: 5px 0; padding: 6px 12px; cursor: pointer; background: #007acc; color: white; border: none; border-radius: 4px; }
+    body { font-family: Arial, sans-serif; margin: 40px; background: #f9f9fb; }
+    h1 { color: #2c3e50; text-align: center; }
+    .container { max-width: 1000px; margin: auto; }
+    .folder {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .folder h2 {
+      margin: 0 0 15px;
+      color: #2c3e50;
+      font-size: 1.4em;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 8px;
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+    }
     button:hover { background: #005a99; }
     pre {
       background: #f4f4f4;
       padding: 12px;
-      margin: 8px 0;
-      border-radius: 4px;
+      margin: 10px 0;
+      border-radius: 6px;
       overflow-x: auto;
       border-left: 5px solid #ccc;
+      font-family: 'Courier New', monospace;
       transition: all 0.3s ease;
     }
-    .save-all-group { }
+    .save-all-badge {
+      background: #ffeb3b;
+      color: #333;
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -29,16 +61,16 @@
   </div>
 
   <script>
-    // ============== COLOR PALETTE FOR EACH "SAVE ALL" ==============
+    // ============== COLOR PALETTE FOR EACH "SAVE ALL" GROUP ==============
     const SAVE_ALL_COLORS = [
-      '#d4edda', // green
-      '#fff3cd', // yellow
-      '#d1ecf1', // cyan
-      '#f8d7da', // red
-      '#e2d4f1', // purple
-      '#d6d8db', // gray
-      '#cce5ff', // blue
-      '#f1d4f1'  // pink
+      '#ffebee', // light red
+      '#f8bbd0', // pink
+      '#e1f5fe', // light blue
+      '#e8f5e8', // light green
+      '#fff3e0', // light orange
+      '#f3e5f5', // light purple
+      '#e0f2f1', // teal
+      '#fffde7'  // yellow
     ];
 
     // ============== INDIAN TIME ==============
@@ -51,9 +83,9 @@
       });
     }
 
-    // ============== TRACK SAVE ALL GROUPS ==============
-    let saveAllGroupId = 0;
-    const saveAllGroupColors = new Map(); // groupId → color
+    // ============== GLOBAL SAVE ALL GROUP TRACKING ==============
+    let globalSaveAllGroupId = 0;
+    const saveAllGroupColorMap = new Map(); // groupId → color
 
     async function loadDashboard() {
       const res = await fetch('/fetchDashboard');
@@ -61,53 +93,61 @@
       const container = document.getElementById('dashboard');
       container.innerHTML = '';
 
+      // Reset group counter for fresh load
+      globalSaveAllGroupId = 0;
+      saveAllGroupColorMap.clear();
+
       Object.keys(data).forEach(folderName => {
         const folderDiv = document.createElement('div');
         folderDiv.className = 'folder';
-        folderDiv.innerHTML = `<h2 style="margin:0 0 15px; color:#2c3e50;">${folderName.toUpperCase()}</h2>`;
+        folderDiv.innerHTML = `<h2>${folderName.toUpperCase()}</h2>`;
 
         data[folderName].versions.forEach(version => {
           const { version: verNum, timestamp, files, isAllSave = false } = version;
 
-          // Assign a group color if it's a Save All
+          // === ASSIGN GROUP ID & COLOR FOR SAVE ALL ===
           let groupColor = null;
+          let groupId = null;
+
           if (isAllSave) {
-            if (!version.groupId) {
-              version.groupId = ++saveAllGroupId;
+            // Use a global group ID across ALL folders
+            if (!version.globalGroupId) {
+              version.globalGroupId = ++globalSaveAllGroupId;
             }
-            if (!saveAllGroupColors.has(version.groupId)) {
-              const colorIndex = (saveAllGroupId - 1) % SAVE_ALL_COLORS.length;
-              saveAllGroupColors.set(version.groupId, SAVE_ALL_COLORS[colorIndex]);
+            groupId = version.globalGroupId;
+
+            if (!saveAllGroupColorMap.has(groupId)) {
+              const colorIndex = (groupId - 1) % SAVE_ALL_COLORS.length;
+              saveAllGroupColorMap.set(groupId, SAVE_ALL_COLORS[colorIndex]);
             }
-            groupColor = saveAllGroupColors.get(version.groupId);
+            groupColor = saveAllGroupColorMap.get(groupId);
           }
 
           const versionDiv = document.createElement('div');
-          versionDiv.style.cssText = 'border-top:1px solid #ddd; margin-top:15px; padding-top:15px;';
+          versionDiv.style.cssText = 'border-top:1px solid #eee; margin-top:18px; padding-top:18px;';
 
           const timeStr = toIndianTime(timestamp);
           versionDiv.innerHTML = `
-            <h3 style="margin:0 0 10px; color:#2c3e50;">
+            <h3 style="margin:0 0 12px; color:#2c3e50; display:flex; align-items:center;">
               Version ${verNum} - ${timeStr}
-              ${isAllSave ? '<span style="background:#ffeb3b; padding:2px 6px; border-radius:3px; font-size:0.8em; margin-left:8px;">SAVE ALL</span>' : ''}
+              ${isAllSave ? `<span class="save-all-badge">SAVE ALL #${groupId}</span>` : ''}
             </h3>`;
 
           const btn = document.createElement('button');
           btn.textContent = 'Reload this version';
           btn.onclick = () => {
-            // Clear old files
             versionDiv.querySelectorAll('pre').forEach(p => p.remove());
 
             Object.keys(files).forEach(filename => {
               const pre = document.createElement('pre');
               pre.textContent = `${filename}:\n${files[filename]}`;
 
-              // APPLY COLOR ONLY IF SAVE ALL
               if (isAllSave && groupColor) {
+                // Same color for ALL files in this Save All group
                 pre.style.background = groupColor;
-                pre.style.borderLeftColor = darkenColor(groupColor, 30);
-                pre.classList.add('save-all-group');
+                pre.style.borderLeftColor = darken(groupColor, 40);
               } else {
+                // Default for single folder save
                 pre.style.background = '#f4f4f4';
                 pre.style.borderLeftColor = '#ccc';
               }
@@ -125,18 +165,22 @@
     }
 
     // ============== DARKEN COLOR FOR BORDER ==============
-    function darkenColor(color, percent) {
+    function darken(color, percent) {
       const num = parseInt(color.slice(1), 16);
       const amt = Math.round(2.55 * percent);
       const R = (num >> 16) - amt;
       const G = (num >> 8 & 0x00FF) - amt;
       const B = (num & 0x0000FF) - amt;
-      return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-             (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-             (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+      return "#" + (0x1000000 +
+        (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+        (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+        (B < 255 ? (B < 1 ? 0 : B) : 255)
+      ).toString(16).slice(1);
     }
 
-    // ============== LOAD ==============
+    // ============== AUTO REFRESH (optional) ==============
+    // setInterval(loadDashboard, 10000); // every 10 sec
+
     loadDashboard();
   </script>
 </body>
