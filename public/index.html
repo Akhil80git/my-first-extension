@@ -21,15 +21,11 @@
     }
     .group-btn {
       margin:3px;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;
-      border:1px solid transparent;position:relative;
+      border:1px solid transparent;
     }
     .group-btn.active {background:#007acc;color:white;}
     .group-btn.all {background:#4caf50;color:white;}
     .group-btn.all.active {background:#388e3c;}
-    .error-count {
-      font-size:0.65em;background:#f44336;color:white;border-radius:10px;
-      padding:1px 5px;margin-left:6px;font-weight:bold;
-    }
 
     .content {
       margin-top:180px;padding:0 20px;height:calc(100vh - 180px);overflow-y:auto;
@@ -72,6 +68,7 @@
     .tree-children.open {display:block;}
     .tree-icon {font-size:0.8em;}
 
+    /* Copy Button */
     .copy-btn {
       position:absolute;top:8px;right:8px;background:#007acc;color:white;
       border:none;padding:4px 8px;border-radius:4px;font-size:0.8em;cursor:pointer;
@@ -130,106 +127,22 @@
     return brightness > 128;
   }
 
-  // === NEW: Count Syntax Errors ===
-  function countSyntaxErrors(code, filename) {
-    let errors = 0;
-    const ext = filename.split('.').pop().toLowerCase();
-
-    if (['js','jsx','ts','tsx'].includes(ext)) {
-      // JS/TS: Check brackets, semicolons, quotes
-      const stack = [];
-      for (let i = 0; i < code.length; i++) {
-        const c = code[i];
-        if (c === '{' || c === '[' || c === '(') stack.push(c);
-        if (c === '}' || c === ']' || c === ')') {
-          const open = { '}':'{', ']':'[', ')':'(' }[c];
-          if (stack.length && stack[stack.length-1] === open) stack.pop();
-          else errors++;
-        }
-        if (c === '"' || c === "'") {
-          if (i === 0 || code[i-1] !== '\\') {
-            const end = code.indexOf(c, i+1);
-            if (end === -1) errors++;
-            else i = end;
-          }
-        }
-      }
-      errors += stack.length; // unclosed
-      if (!/;\s*$/m.test(code.trim()) && !code.includes('=>') && !code.includes('return')) errors++;
-    }
-
-    if (ext === 'html') {
-      const tags = code.match(/<\/?[^>]+>/g) || [];
-      const stack = [];
-      tags.forEach(tag => {
-        if (tag.startsWith('</')) {
-          const name = tag.match(/<\/([a-z0-9]+)/i)[1];
-          if (stack.length && stack[stack.length-1] === name) stack.pop();
-          else errors++;
-        } else if (!tag.match(/\/>$/) && !['br','hr','img','input'].includes(tag.match(/<([a-z0-9]+)/i)[1])) {
-          const name = tag.match(/<([a-z0-9]+)/i)[1];
-          stack.push(name);
-        }
-      });
-      errors += stack.length;
-    }
-
-    if (ext === 'css') {
-      const lines = code.split('\n');
-      lines.forEach(line => {
-        if (line.trim() && !line.trim().endsWith(';') && !line.includes('{') && !line.includes('}')) errors++;
-      });
-      const stack = [];
-      for (let c of code) {
-        if (c === '{') stack.push(c);
-        if (c === '}') {
-          if (stack.length) stack.pop(); else errors++;
-        }
-      }
-      errors += stack.length;
-    }
-
-    return errors;
-  }
-
-  function analyzeGroupErrors(groupId, data) {
-    let total = 0;
-    Object.keys(data).forEach(folder => {
-      data[folder].versions.forEach(v => {
-        if (v._globalCluster && v._globalCluster.id === groupId) {
-          function scan(obj) {
-            Object.keys(obj).forEach(key => {
-              const val = obj[key];
-              if (typeof val === 'string') {
-                total += countSyntaxErrors(val, key);
-              } else if (typeof val === 'object') {
-                scan(val);
-              }
-            });
-          }
-          scan(v.files);
-        }
-      });
-    });
-    return total;
-  }
-
-  // === Render Tree ===
+  // === Render Tree with Toggle + Copy ===
   function renderFileTree(container, filesObj, clusterInfo) {
     const root = document.createElement('div');
     root.className = 'tree-root';
 
     function buildNode(obj, parentPath = '') {
       const keys = Object.keys(obj).sort((a,b) => {
-        const aIsDir = obj[a] && typeof obj[a] === 'object';
-        const bIsDir = obj[b] && typeof obj[b] === 'object';
+        const aIsDir = obj[a] && typeof obj[a] === 'object' && !obj[a].includes;
+        const bIsDir = obj[b] && typeof obj[b] === 'object' && !obj[b].includes;
         return bIsDir - aIsDir || a.localeCompare(b);
       });
 
       keys.forEach(key => {
         const value = obj[key];
         const fullPath = parentPath ? `${parentPath}/${key}` : key;
-        const isDir = value && typeof value === 'object';
+        const isDir = value && typeof value === 'object' && !value.includes;
 
         const node = document.createElement('div');
         node.className = 'tree-node';
@@ -262,8 +175,8 @@
             } else {
               if (pre) pre.remove();
               pre = document.createElement('pre');
-              pre.textContent = value;
-
+              pre.textContent = value; // sirf code, file name nahi
+              
               if (selectedGroup !== 'all' && clusterInfo) {
                 pre.style.background = clusterInfo.color;
                 pre.style.borderLeftColor = clusterInfo.borderColor;
@@ -314,11 +227,25 @@
             timestamp: "2025-11-16T10:17:24.000Z",
             files: {
               "src/": {
-                "App.js": "console.log('Hello'\nconst x = 5",
-                "Button.jsx": "<button>Click</button",
-                "styles.css": ".btn { padding: 10px"
+                "components/": {
+                  "Button.js": "export const Button = () => <button>Click</button>;",
+                  "Card.js": "export const Card = () => <div>Hi</div>;"
+                },
+                "App.js": "console.log('Hello World');"
               },
-              "index.html": "<html><body><h1>Hello</body></html>"
+              "styles/": {
+                "hgd.css": ".header { color: red; }\n.btn { padding: 10px; }"
+              },
+              "index.html": "<html><body><h1>Hello</h1></body></html>"
+            }
+          },
+          {
+            version: 2,
+            timestamp: "2025-11-16T10:17:59.000Z",
+            files: {
+              "styles/": {
+                "hgd.css": ".header { color: blue; }\n.btn { padding: 12px; }"
+              }
             }
           }
         ]
@@ -389,15 +316,6 @@
       btn.style.border = `1px solid ${c.borderColor}`;
       btn.style.color = isLightColor(c.color) ? '#000' : '#fff';
       btn.onclick=()=>{selectGroup(c.id);};
-      
-      const errorCount = analyzeGroupErrors(c.id, currentData);
-      if (errorCount > 0) {
-        const span = document.createElement('span');
-        span.className = 'error-count';
-        span.textContent = errorCount;
-        btn.appendChild(span);
-      }
-
       bar.appendChild(btn);
     });
 
@@ -408,7 +326,7 @@
     document.querySelectorAll('#groupBar .group-btn').forEach(b=>b.classList.remove('active'));
     const activeBtn = selectedGroup==='all'?
       document.querySelector('#groupBar .all'):
-      Array.from(document.querySelectorAll('#groupBar .group-btn')).find(b=>b.textContent.startsWith(`Group ${selectedGroup}`));
+      Array.from(document.querySelectorAll('#groupBar .group-btn')).find(b=>b.textContent===`Group ${selectedGroup}`);
     if(activeBtn) activeBtn.classList.add('active');
   }
 
