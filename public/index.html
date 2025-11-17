@@ -1,428 +1,401 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="hi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>VS Code Folder Versioning - Global 3s Grouping</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    * { box-sizing: border-box; }
-    body {font-family:Arial,sans-serif;margin:0;background:#f9f9fb;color:#222;overflow:hidden;}
-    h1 {color:#2c3e50;text-align:center;margin:16px 0 8px;font-size:1.8em;}
-    
-    .header {
-      position:fixed;top:0;left:0;right:0;background:#f9f9fb;z-index:1000;
-      border-bottom:1px solid #ddd;padding:10px 20px;
+    :root {
+      --bg: #f8f9fc;
+      --card: #ffffff;
+      --border: #e0e0e0;
+      --text: #1a1a1a;
+      --primary: #007acc;
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
-    .controls {text-align:center;margin-bottom:8px;}
-    .notice {text-align:center;font-size:.9em;color:#666;margin:6px 0;}
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      box-shadow: var(--shadow);
+      z-index: 10;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      color: #2c3e50;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+    .notice {
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+    }
     .group-bar {
-      background:#fff;padding:10px;border:1px solid #eee;border-radius:8px;
-      text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.08);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
     }
     .group-btn {
-      margin:3px;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;
-      border:1px solid transparent;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .group-btn.active {background:#007acc;color:white;}
-    .group-btn.all {background:#4caf50;color:white;}
-    .group-btn.all.active {background:#388e3c;}
+    .group-btn.all { background: #4caf50; color: white; }
+    .group-btn.active { transform: scale(1.05); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
-    .content {
-      margin-top:180px;padding:0 20px;height:calc(100vh - 180px);overflow-y:auto;
+    /* Main Layout */
+    .main {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      overflow: hidden;
     }
-    .container {max-width:1000px;margin:0 auto;}
-
-    .folder{background:white;border:1px solid #ddd;border-radius:10px;margin-bottom:18px;padding:15px;box-shadow:0 2px 5px rgba(0,0,0,.05);}
-    .folder h2{margin:0 0 12px;color:#2c3e50;font-size:1.25em;border-bottom:2px solid #eee;padding-bottom:8px;text-transform:uppercase;}
-    .version{border-top:1px solid #eee;margin-top:14px;padding-top:14px;}
-    button{background:#007acc;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;transition:.15s;}
-    button:hover{background:#005a99;}
-    pre{
-      background:#f4f4f4;padding:12px;margin:8px 0 0 0;border-radius:6px;
-      overflow-x:auto;border-left:5px solid #ccc;font-family:'Courier New',monospace;
-      position:relative;white-space:pre-wrap;
+    .left-panel {
+      background: white;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
     }
-    .save-all-badge {
-      font-size:0.75em;padding:2px 8px;border-radius:4px;margin-left:10px;font-weight:bold;
-      border-left:3px solid;
+    .right-panel {
+      padding: 20px;
+      overflow-y: auto;
+      background: #f5f5f5;
     }
-    .version-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-
-    /* Tree */
-    .tree-node {margin-left:20px;position:relative;}
-    .tree-node::before {
-      content:'';position:absolute;left:-12px;top:0;bottom:0;width:1px;background:#ccc;
+    .folder {
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
     }
-    .tree-node:last-child::before {bottom:50%;}
-    .tree-node > .tree-label::before {
-      content:'';position:absolute;left:-12px;top:50%;width:12px;height:1px;background:#ccc;
+    .folder h2 {
+      background: #f0f2f5;
+      padding: 12px 16px;
+      margin: 0;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #444;
     }
+    .version {
+      border-top: 1px solid var(--border);
+    }
+    .version-header {
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .version-header:hover { background: #f8f9fa; }
+    .badge {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+    .tree-container {
+      padding: 0 16px 12px;
+      display: none;
+    }
+    .tree-container.open { display: block; }
     .tree-label {
-      display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:4px;
-      user-select:none;font-family:monospace;font-size:0.95em;
+      padding: 6px 10px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-family: 'Consolas', monospace;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .tree-label:hover {background:#f0f0f0;}
-    .tree-label.folder {font-weight:bold;color:#1976d2;}
-    .tree-label.file {color:#333;}
-    .tree-children {margin-left:20px;display:none;}
-    .tree-children.open {display:block;}
-    .tree-icon {font-size:0.8em;}
-
-    /* Copy Button */
+    .tree-label:hover { background: #f0f0f0; }
+    .tree-label.folder { color: #1976d2; font-weight: bold; }
+    pre {
+      margin: 8px 0;
+      padding: 12px;
+      background: #2d2d2d;
+      color: #f8f8f2;
+      border-radius: 8px;
+      position: relative;
+      overflow-x: auto;
+    }
     .copy-btn {
-      position:absolute;top:8px;right:8px;background:#007acc;color:white;
-      border:none;padding:4px 8px;border-radius:4px;font-size:0.8em;cursor:pointer;
-      opacity:0.8;
+      position: absolute;
+      top: 8px; right: 8px;
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
     }
-    .copy-btn:hover {opacity:1;background:#005a99;}
+
+    /* Right Panel Preview */
+    #preview {
+      width: 100%;
+      height: 90vh;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: white;
+    }
+    .run-btn {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .run-btn:hover { background: #218838; }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>VS Code Folder Versioning — Global 3s Grouping</h1>
-    <div class="controls">
-      <button id="reloadBtn">Load Dashboard</button>
-      <button id="sampleBtn">Load Sample Data</button>
-    </div>
-    <div class="notice">Logic: सभी folders मिलाकर timestamps को cluster करते हैं — यदि timestamps का फरक ≤ 3 सेकण्ड हो तो same color group.</div>
-    <div id="groupBar" class="group-bar"></div>
+<header>
+  <h1><i class="fas fa-code-branch"></i> VS Code Folder Versioning — Global 3s Grouping</h1>
+  <div class="controls">
+    <button id="reloadBtn" class="group-btn"><i class="fas fa-sync"></i> Load Dashboard</button>
+    <button id="sampleBtn" class="group-btn"><i class="fas fa-play"></i> Load Sample Data</button>
   </div>
+  <div class="notice">Logic: सभी folders के timestamps को मिलाकर cluster → 3 सेकंड के अंदर = same group</div>
+  <div id="groupBar" class="group-bar"></div>
+</header>
 
-  <div class="content">
-    <div class="container">
-      <div id="dashboard"></div>
-    </div>
+<div class="main">
+  <div class="left-panel" id="dashboard"></div>
+  <div class="right-panel">
+    <h2><i class="fas fa-tv"></i> Live Preview</h2>
+    <button id="runAllBtn" class="run-btn" style="margin:10px 0;">Run All Files in this Version</button>
+    <iframe id="preview" sandbox="allow-scripts"></iframe>
   </div>
+</div>
 
 <script>
-  const SAVE_ALL_COLORS = ['#ffebee','#f8bbd0','#e1f5fe','#e8f5e8','#fff3e0','#f3e5f5','#e0f2f1','#fffde7'];
-
-  function toIndianTimeStr(isoOrMs){
-    const d = new Date(isoOrMs);
-    return d.toLocaleString('en-IN',{
-      timeZone:'Asia/Kolkata',
-      year:'numeric',month:'2-digit',day:'2-digit',
-      hour:'2-digit',minute:'2-digit',second:'2-digit',
-      hour12:false
-    });
-  }
-
-  function darken(hex,percent){
-    const h = hex.replace('#','');
-    const num = parseInt(h,16);
-    let r = (num>>16)&0xff, g = (num>>8)&0xff, b = num&0xff;
-    r = Math.max(0,Math.min(255,Math.round(r-2.55*percent)));
-    g = Math.max(0,Math.min(255,Math.round(g-2.55*percent)));
-    b = Math.max(0,Math.min(255,Math.round(b-2.55*percent)));
-    return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
-  }
-
-  function isLightColor(hex) {
-    const h = hex.replace('#', '');
-    const r = parseInt(h.substr(0,2),16);
-    const g = parseInt(h.substr(2,2),16);
-    const b = parseInt(h.substr(4,2),16);
-    const brightness = (r*299 + g*587 + b*114) / 1000;
-    return brightness > 128;
-  }
-
-  // === Render Tree with Toggle + Copy ===
-  function renderFileTree(container, filesObj, clusterInfo) {
-    const root = document.createElement('div');
-    root.className = 'tree-root';
-
-    function buildNode(obj, parentPath = '') {
-      const keys = Object.keys(obj).sort((a,b) => {
-        const aIsDir = obj[a] && typeof obj[a] === 'object' && !obj[a].includes;
-        const bIsDir = obj[b] && typeof obj[b] === 'object' && !obj[b].includes;
-        return bIsDir - aIsDir || a.localeCompare(b);
-      });
-
-      keys.forEach(key => {
-        const value = obj[key];
-        const fullPath = parentPath ? `${parentPath}/${key}` : key;
-        const isDir = value && typeof value === 'object' && !value.includes;
-
-        const node = document.createElement('div');
-        node.className = 'tree-node';
-
-        const label = document.createElement('div');
-        label.className = `tree-label ${isDir ? 'folder' : 'file'}`;
-        label.innerHTML = `
-          <span class="tree-icon">${isDir ? 'Folder' : 'File'}</span>
-          <span>${key}</span>
-        `;
-
-        if (isDir) {
-          const children = document.createElement('div');
-          children.className = 'tree-children';
-          buildNode(value, fullPath);
-          node.appendChild(label);
-          node.appendChild(children);
-
-          label.onclick = (e) => {
-            e.stopPropagation();
-            children.classList.toggle('open');
-          };
-        } else {
-          let pre = null;
-          label.onclick = (e) => {
-            e.stopPropagation();
-            if (pre && pre.parentNode === node) {
-              pre.remove();
-              pre = null;
-            } else {
-              if (pre) pre.remove();
-              pre = document.createElement('pre');
-              pre.textContent = value; // sirf code, file name nahi
-              
-              if (selectedGroup !== 'all' && clusterInfo) {
-                pre.style.background = clusterInfo.color;
-                pre.style.borderLeftColor = clusterInfo.borderColor;
-              }
-
-              const copyBtn = document.createElement('button');
-              copyBtn.textContent = 'Copy';
-              copyBtn.className = 'copy-btn';
-              copyBtn.onclick = (e) => {
-                e.stopPropagation();
-                navigator.clipboard.writeText(value).then(() => {
-                  copyBtn.textContent = 'Copied!';
-                  setTimeout(() => copyBtn.textContent = 'Copy', 1500);
-                });
-              };
-              pre.appendChild(copyBtn);
-              node.appendChild(pre);
-            }
-          };
-        }
-
-        node.appendChild(label);
-        root.appendChild(node);
-      });
-    }
-
-    buildNode(filesObj);
-    container.appendChild(root);
-  }
-
-  async function fetchDashboardFromServer(){
-    try{
-      const res = await fetch('/fetchDashboard');
-      if(!res.ok) throw new Error('Server error');
-      return await res.json();
-    }catch(e){
-      console.warn('Server fetch failed:',e);
-      return null;
-    }
-  }
-
-  function getSampleData(){
-    return {
-      "frontend": {
-        versions: [
-          {
-            version: 1,
-            timestamp: "2025-11-16T10:17:24.000Z",
-            files: {
-              "src/": {
-                "components/": {
-                  "Button.js": "export const Button = () => <button>Click</button>;",
-                  "Card.js": "export const Card = () => <div>Hi</div>;"
-                },
-                "App.js": "console.log('Hello World');"
-              },
-              "styles/": {
-                "hgd.css": ".header { color: red; }\n.btn { padding: 10px; }"
-              },
-              "index.html": "<html><body><h1>Hello</h1></body></html>"
-            }
-          },
-          {
-            version: 2,
-            timestamp: "2025-11-16T10:17:59.000Z",
-            files: {
-              "styles/": {
-                "hgd.css": ".header { color: blue; }\n.btn { padding: 12px; }"
-              }
-            }
-          }
-        ]
-      }
-    };
-  }
-
-  function clusterGloballyAllVersions(allFolderData){
-    const flat=[];
-    Object.keys(allFolderData).forEach(f=>{
-      const vlist = allFolderData[f].versions||[];
-      vlist.forEach(v=>{
-        const t = typeof v.timestamp==='number'?v.timestamp:Date.parse(v.timestamp);
-        flat.push({folder:f, versionObj:v, timestampMs:t});
-      });
-    });
-    flat.sort((a,b)=>a.timestampMs-b.timestampMs);
-
-    const clusters=[];
-    let cur=null;
-    flat.forEach(it=>{
-      if(!cur){
-        cur={id:clusters.length+1,startMs:it.timestampMs,items:[it]};
-        clusters.push(cur);
-      }else{
-        if(it.timestampMs-cur.startMs<=3000){
-          cur.items.push(it);
-        }else{
-          cur={id:clusters.length+1,startMs:it.timestampMs,items:[it]};
-          clusters.push(cur);
-        }
-      }
-    });
-
-    clusters.forEach((c,i)=>{
-      c.color = SAVE_ALL_COLORS[i%SAVE_ALL_COLORS.length];
-      c.borderColor = darken(c.color,30);
-    });
-
-    clusters.forEach(c=>{
-      c.items.forEach(it=>{
-        it.versionObj._globalCluster = {id:c.id,color:c.color,borderColor:c.borderColor,startMs:c.startMs};
-      });
-    });
-
-    return {flat,clusters};
-  }
-
+  const SAVE_ALL_COLORS = ['#ffebee','#e8f5e8','#e3f2fd','#fff3e0','#f3e5f5','#e0f2f1','#fff8e1','#fce4ec'];
   let currentData = null;
   let currentClusters = null;
   let selectedGroup = 'all';
+  let currentVersionFiles = {}; // for running
 
-  function renderGroupBar(){
-    const bar = document.getElementById('groupBar');
-    bar.innerHTML='';
-
-    const allBtn = document.createElement('button');
-    allBtn.className='group-btn all';
-    allBtn.textContent='All';
-    allBtn.onclick=()=>{selectGroup('all');};
-    bar.appendChild(allBtn);
-
-    currentClusters.forEach(c=>{
-      const btn = document.createElement('button');
-      btn.className='group-btn';
-      btn.textContent=`Group ${c.id}`;
-      btn.style.background = c.color;
-      btn.style.border = `1px solid ${c.borderColor}`;
-      btn.style.color = isLightColor(c.color) ? '#000' : '#fff';
-      btn.onclick=()=>{selectGroup(c.id);};
-      bar.appendChild(btn);
-    });
-
-    updateActiveButton();
+  function toIndianTimeStr(iso) {
+    return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
   }
 
-  function updateActiveButton(){
-    document.querySelectorAll('#groupBar .group-btn').forEach(b=>b.classList.remove('active'));
-    const activeBtn = selectedGroup==='all'?
-      document.querySelector('#groupBar .all'):
-      Array.from(document.querySelectorAll('#groupBar .group-btn')).find(b=>b.textContent===`Group ${selectedGroup}`);
-    if(activeBtn) activeBtn.classList.add('active');
+  function darken(hex, p=30) {
+    let [r,g,b] = hex.match(/\w\w/g).map(x => parseInt(x,16));
+    r = Math.max(0, r - p); g = Math.max(0, g - p); b = Math.max(0, b - p);
+    return `#${[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('')}`;
   }
 
-  function selectGroup(gid){
-    selectedGroup = gid;
-    renderDashboard(currentData);
-    updateActiveButton();
-  }
+  function renderFileTree(container, filesObj, clusterInfo, versionKey) {
+    currentVersionFiles[versionKey] = filesObj;
 
-  function renderDashboard(data){
-    const container = document.getElementById('dashboard');
-    container.innerHTML='';
-
-    const filtered = {};
-    Object.keys(data).forEach(f=>{
-      const vers = data[f].versions||[];
-      const keep = vers.filter(v=>{
-        if(selectedGroup==='all') return true;
-        const cl = v._globalCluster;
-        return cl && cl.id===selectedGroup;
+    function buildNode(obj, path = '') {
+      const div = document.createElement('div');
+      Object.keys(obj).sort((a,b) => {
+        const aDir = typeof obj[a] === 'object';
+        const bDir = typeof obj[b] === 'object';
+        return bDir - aDir || a.localeCompare(b);
+      }).forEach(key => {
+        const val = obj[key];
+        const fullPath = path ? `${path}/${key}` : key;
+        const isDir = typeof val === 'object' && val !== null;
+        const label = document.createElement('div');
+        label.className = `tree-label ${isDir ? 'folder' : 'file'}`;
+        label.innerHTML = `<i class="${isDir?'fas fa-folder':'fas fa-file-code'}"></i> ${key}`;
+        
+        if (!isDir) {
+          label.onclick = () => {
+            const existing = label.nextElementSibling;
+            if (existing && existing.tagName === 'PRE') {
+              existing.remove();
+              return;
+            }
+            if (existing) existing.remove();
+            const pre = document.createElement('pre');
+            pre.textContent = val;
+            const copy = document.createElement('button');
+            copy.textContent = 'Copy';
+            copy.className = 'copy-btn';
+            copy.onclick = (e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(val);
+              copy.textContent = 'Copied!';
+              setTimeout(() => copy.textContent = 'Copy', 1500);
+            };
+            pre.appendChild(copy);
+            label.after(pre);
+          };
+        } else {
+          const children = document.createElement('div');
+          children.style.marginLeft = '20px';
+          buildNode(val, fullPath);
+          label.onclick = () => children.classList.toggle('open');
+          div.appendChild(label);
+          div.appendChild(children);
+        }
+        div.appendChild(label);
       });
-      if(keep.length) filtered[f] = {versions:keep};
+      container.appendChild(div);
+    }
+    buildNode(filesObj);
+  }
+
+  // Clustering logic same as yours...
+  function clusterGloballyAllVersions(data) {
+    const flat = [];
+    Object.keys(data).forEach(f => {
+      data[f].versions.forEach(v => {
+        const t = Date.parse(v.timestamp);
+        flat.push({ folder: f, versionObj: v, timestampMs: t });
+      });
     });
+    flat.sort((a,b) => a.timestampMs - b.timestampMs);
+    const clusters = [];
+    let cur = null;
+    flat.forEach(it => {
+      if (!cur || it.timestampMs - cur.startMs > 3000) {
+        cur = { id: clusters.length + 1, startMs: it.timestampMs, items: [it] };
+        clusters.push(cur);
+      } else {
+        cur.items.push(it);
+      }
+    });
+    clusters.forEach((c, i) => {
+      c.color = SAVE_ALL_COLORS[i % SAVE_ALL_COLORS.length];
+      c.border = darken(c.color, 40);
+      c.items.forEach(x => x.versionObj._globalCluster = { id: c.id, color: c.color, border: c.border });
+    });
+    return clusters;
+  }
 
-    Object.keys(filtered).forEach(folderName=>{
+  function renderDashboard(data) {
+    const container = document.getElementById('dashboard');
+    container.innerHTML = '';
+    const filtered = selectedGroup === 'all' ? data : 
+      Object.keys(data).reduce((acc, f) => {
+        const vers = data[f].versions.filter(v => v._globalCluster?.id == selectedGroup);
+        if (vers.length) acc[f] = { versions: vers };
+        return acc;
+      }, {});
+
+    Object.keys(filtered).forEach(folderName => {
       const folderDiv = document.createElement('div');
-      folderDiv.className='folder';
-      folderDiv.innerHTML=`<h2>${folderName}</h2>`;
-
-      filtered[folderName].versions.forEach(version=>{
-        const versionDiv = document.createElement('div');
-        versionDiv.className='version';
-
-        const clusterInfo = version._globalCluster;
-        const timeStr = toIndianTimeStr(Date.parse(version.timestamp));
-
-        const badgeHtml = clusterInfo ? `
-          <span class="save-all-badge" style="
-            background:${clusterInfo.color};
-            color:${isLightColor(clusterInfo.color)?'#000':'#fff'};
-            border-left-color:${clusterInfo.borderColor};
-          ">GROUP #${clusterInfo.id}</span>
-        ` : '';
-
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'version-header';
-        headerDiv.style.background = (selectedGroup !== 'all' && clusterInfo) ? clusterInfo.color : '#fff';
-        headerDiv.style.padding = '6px 10px';
-        headerDiv.style.borderRadius = '6px';
-        headerDiv.style.borderLeft = clusterInfo ? `4px solid ${clusterInfo.borderColor}` : '4px solid #ccc';
-        headerDiv.style.marginBottom = '8px';
-        headerDiv.innerHTML = `
-          <strong>Version ${version.version}</strong> - ${timeStr}
-          ${badgeHtml}
+      folderDiv.className = 'folder';
+      folderDiv.innerHTML = `<h2>${folderName}</h2>`;
+      
+      filtered[folderName].versions.forEach((version, idx) => {
+        const cluster = version._globalCluster || {};
+        const versionKey = `${folderName}-v${version.version}`;
+        const header = document.createElement('div');
+        header.className = 'version-header';
+        header.style.background = cluster.color || '#f9f9f9';
+        header.style.borderLeft = `5px solid ${cluster.border || '#ccc'}`;
+        header.innerHTML = `
+          <span>Version ${version.version} — ${toIndianTimeStr(version.timestamp)}</span>
+          ${cluster.id ? `<span class="badge" style="background:${cluster.border};color:white;">GROUP #${cluster.id}</span>` : ''}
         `;
+        const content = document.createElement('div');
+        content.className = 'tree-container';
+        renderFileTree(content, version.files, cluster, versionKey);
 
-        versionDiv.appendChild(headerDiv);
+        const runBtn = document.createElement('button');
+        runBtn.className = 'run-btn';
+        runBtn.innerHTML = '<i class="fas fa-play"></i> Run This Version';
+        runBtn.style.margin = '10px 16px';
+        runBtn.onclick = () => runVersion(version.files);
 
-        const treeContainer = document.createElement('div');
-        treeContainer.style.marginTop = '10px';
-        renderFileTree(treeContainer, version.files, clusterInfo);
-        versionDiv.appendChild(treeContainer);
-
-        const btn = document.createElement('button');
-        btn.textContent='Reload this version';
-        btn.style.marginTop = '10px';
-        versionDiv.appendChild(btn);
+        header.onclick = () => content.classList.toggle('open');
+        const versionDiv = document.createElement('div');
+        versionDiv.className = 'version';
+        versionDiv.appendChild(header);
+        versionDiv.appendChild(content);
+        versionDiv.appendChild(runBtn);
         folderDiv.appendChild(versionDiv);
       });
-
       container.appendChild(folderDiv);
     });
   }
 
-  async function loadDashboard(useSample=false){
-    let data = null;
-    if(!useSample) data = await fetchDashboardFromServer();
-    if(!data) data = getSampleData();
+  function runVersion(files) {
+    let html = '', css = '', js = '';
+    function traverse(obj) {
+      Object.keys(obj).forEach(k => {
+        const v = obj[k];
+        if (typeof v === 'object') traverse(v);
+        else if (k.endsWith('.html')) html += v;
+        else if (k.endsWith('.css')) css += `<style>${v}</style>`;
+        else if (k.endsWith('.js')) js += `<script>${v}<\/script>`;
+      });
+    }
+    traverse(files);
+    const output = `${html}${css}${js}`;
+    const iframe = document.getElementById('preview');
+    iframe.srcdoc = output || '<h1 style="color:#666;text-align:center;margin-top:100px;">No runnable files found</h1>';
+  }
 
-    Object.keys(data).forEach(f=>{
-      data[f].versions = (data[f].versions||[]).map(v=>Object.assign({},v));
+  function renderGroupBar() {
+    const bar = document.getElementById('groupBar');
+    bar.innerHTML = '';
+    ['all', ...currentClusters.map(c => c.id)].forEach(g => {
+      const btn = document.createElement('button');
+      btn.className = 'group-btn';
+      btn.textContent = g === 'all' ? 'All' : `Group ${g}`;
+      if (g !== 'all') {
+        btn.style.background = currentClusters.find(c=>c.id==g).color;
+        btn.style.color = 'black';
+      } else {
+        btn.classList.add('all');
+      }
+      if (g == selectedGroup) btn.classList.add('active');
+      btn.onclick = () => { selectedGroup = g; renderDashboard(currentData); renderGroupBar(); };
+      bar.appendChild(btn);
     });
+  }
 
-    const {clusters} = clusterGloballyAllVersions(data);
+  async function loadDashboard(sample = false) {
+    let data = sample ? getSampleData() : await (await fetch('/fetchDashboard').catch(()=>null))?.json();
+    if (!data) data = getSampleData();
+    currentClusters = clusterGloballyAllVersions(data);
     currentData = data;
-    currentClusters = clusters;
     selectedGroup = 'all';
-
     renderGroupBar();
     renderDashboard(data);
   }
 
-  document.getElementById('reloadBtn').addEventListener('click',()=>loadDashboard(false));
-  document.getElementById('sampleBtn').addEventListener('click',()=>loadDashboard(true));
+  function getSampleData() {
+    return { /* same as yours */ };
+  }
 
-  loadDashboard(false);
+  document.getElementById('reloadBtn').onclick = () => loadDashboard(false);
+  document.getElementById('sampleBtn').onclick = () => loadDashboard(true);
+  document.getElementById('runAllBtn').onclick = () => alert('Choose a version first!');
+
+  loadDashboard(true); // auto load sample
 </script>
 </body>
 </html>
